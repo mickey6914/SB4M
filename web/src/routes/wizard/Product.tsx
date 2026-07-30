@@ -1,18 +1,65 @@
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StepRail from '../../components/StepRail';
 import { ImageIcon } from '../../components/icons';
-import { useRun } from '../../state/run';
+import { useRun, type Listing } from '../../state/run';
 
-// Recent links are illustrative until the server owns run history (increment 3+).
+// Recent links are illustrative until the server owns run history.
 const RECENT = [
   { name: 'Ceramic mug gift set', meta: 'etsy.com · run 14 · 30 pins' },
   { name: 'Printable wall art bundle', meta: 'etsy.com · run 13 · 30 pins' },
   { name: 'Linen table runner', meta: 'shopify · run 12 · 7 pins' },
 ];
 
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function Product() {
   const { run, dispatch } = useRun();
   const navigate = useNavigate();
+  const [pulling, setPulling] = useState(false);
+  const [error, setError] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const pull = async () => {
+    setPulling(true);
+    setError('');
+    try {
+      const res = await fetch('/api/ingest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: run.link }),
+      });
+      const json: { ok: boolean; listing?: Listing; message?: string } = await res.json();
+      if (json.ok && json.listing) {
+        dispatch({ type: 'setListing', listing: json.listing });
+        navigate('/run/hero');
+      } else {
+        setError(json.message ?? 'Something went wrong reading that link — try again.');
+      }
+    } catch {
+      setError('Could not reach the server — is it running? Try again in a moment.');
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const images = await Promise.all(
+      Array.from(files)
+        .filter((f) => f.type.startsWith('image/'))
+        .slice(0, 6)
+        .map(readAsDataUrl)
+    );
+    if (images.length) dispatch({ type: 'addUploads', uploads: images });
+  };
 
   return (
     <>
@@ -32,27 +79,71 @@ export default function Product() {
               onChange={(e) => dispatch({ type: 'setLink', link: e.target.value })}
               placeholder="Paste an Etsy, Shopify or Amazon product link"
               style={{ flex: 1, fontSize: '14.5px' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && run.link.trim() && !pulling) pull();
+              }}
             />
-            <button className="btn btn-primary" type="button" onClick={() => navigate('/run/hero')}>
-              Pull images
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={!run.link.trim() || pulling}
+              onClick={pull}
+            >
+              {pulling ? 'Pulling…' : 'Pull images'}
             </button>
           </div>
+          {error && <p className="ingest-error">{error}</p>}
           <div className="or-divider">
             <span className="or-divider-rule" />
             <span className="or-divider-label">or upload</span>
             <span className="or-divider-rule" />
           </div>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              addFiles(e.target.files);
+              e.target.value = '';
+            }}
+          />
           <div className="upload-grid">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="upload-zone">
-                <ImageIcon size={24} />
-                <span>Drop a product photo</span>
-              </div>
-            ))}
+            {[0, 1, 2].map((i) => {
+              const img = run.uploads[i];
+              return (
+                <div
+                  key={i}
+                  className={img ? 'upload-zone filled' : 'upload-zone'}
+                  onClick={() => fileInput.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    addFiles(e.dataTransfer.files);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  {img ? (
+                    <img src={img} alt={`Uploaded photo ${i + 1}`} />
+                  ) : (
+                    <>
+                      <ImageIcon size={24} />
+                      <span>Drop a product photo</span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <p className="stub-note">
-            Listing ingestion arrives in increment 3 — the link and uploads are stubbed for now.
-          </p>
+          {run.uploads.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <button className="btn btn-primary" type="button" onClick={() => navigate('/run/hero')}>
+                Continue with {run.uploads.length} photo{run.uploads.length > 1 ? 's' : ''}
+              </button>
+            </div>
+          )}
         </div>
         <div className="rail-right">
           <div className="rail-kicker">Recent links</div>

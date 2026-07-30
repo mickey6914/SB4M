@@ -10,9 +10,22 @@ export type Crop = (typeof CROPS)[number];
 export type Volume = 3 | 7 | 30;
 export type FanOut = 'pinterest' | 'pinterest_facebook' | 'all';
 
+export type Listing = {
+  url: string;
+  source: 'etsy' | 'shopify' | 'amazon' | 'other';
+  title: string;
+  description: string;
+  images: string[];
+  price?: string;
+};
+
 export type RunState = {
   shopId: string;
   link: string;
+  // Fetched listing (increment 3) and seller-dropped photos — the two image
+  // sources the hero step draws from. Uploads are the universal fallback.
+  listing: Listing | null;
+  uploads: string[];
   hero: number | null;
   volume: Volume;
   styleDirection: string;
@@ -37,6 +50,8 @@ export const SCENE_CATALOG = [
 const initial: RunState = {
   shopId: 'eav',
   link: '',
+  listing: null,
+  uploads: [],
   hero: null,
   volume: 30,
   styleDirection: '',
@@ -47,6 +62,8 @@ const initial: RunState = {
 
 type Action =
   | { type: 'setLink'; link: string }
+  | { type: 'setListing'; listing: Listing }
+  | { type: 'addUploads'; uploads: string[] }
   | { type: 'setHero'; hero: number }
   | { type: 'setVolume'; volume: Volume }
   | { type: 'setStyleDirection'; text: string }
@@ -60,6 +77,11 @@ function reducer(state: RunState, action: Action): RunState {
   switch (action.type) {
     case 'setLink':
       return { ...state, link: action.link };
+    case 'setListing':
+      // A new listing invalidates any previous hero choice.
+      return { ...state, listing: action.listing, hero: null };
+    case 'addUploads':
+      return { ...state, uploads: [...state.uploads, ...action.uploads].slice(0, 6) };
     case 'setHero':
       return { ...state, hero: action.hero };
     case 'setVolume':
@@ -88,6 +110,11 @@ function reducer(state: RunState, action: Action): RunState {
 export function assetCount(state: RunState): number {
   const cropCount = CROPS.filter((c) => state.crops[c]).length;
   return state.volume * cropCount;
+}
+
+// The hero step's six tiles: listing images first, then uploads.
+export function heroImages(state: RunState): string[] {
+  return [...(state.listing?.images ?? []), ...state.uploads].slice(0, 6);
 }
 
 const RunContext = createContext<{ run: RunState; dispatch: Dispatch<Action> } | null>(null);

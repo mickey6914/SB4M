@@ -327,6 +327,35 @@ html, body, #root {
   max-width: 40em;
 }
 
+.ingest-error {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-accent-700);
+  margin: 12px 0 0;
+  max-width: 44em;
+}
+
+.upload-zone.filled {
+  border-style: solid;
+  border-color: var(--color-divider);
+  padding: 0;
+  overflow: hidden;
+}
+
+.upload-zone.filled img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  inset: 0;
+}
+
 .recent-row {
   padding: 12px 0;
   border-bottom: 2px solid var(--color-divider);
@@ -373,6 +402,7 @@ html, body, #root {
 }
 
 .tile-media {
+  position: relative;
   width: 100%;
   background: var(--color-neutral-200);
   display: flex;
