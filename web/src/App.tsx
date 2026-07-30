@@ -6,6 +6,7 @@ import Hero from './routes/wizard/Hero';
 import Volume from './routes/wizard/Volume';
 import Scenes from './routes/wizard/Scenes';
 import Progress from './routes/wizard/Progress';
+import Review from './routes/Review';
 import { RunProvider } from './state/run';
 
 export default function App() {
@@ -30,17 +31,7 @@ export default function App() {
             <Route path="/run/volume" element={<Volume />} />
             <Route path="/run/scenes" element={<Scenes />} />
             <Route path="/run/:id/progress" element={<Progress />} />
-            <Route
-              path="/review/:runId"
-              element={
-                <Placeholder
-                  kicker="Review"
-                  title="Review the run."
-                  lead="Approve, reject or edit pins; the four-up crop preview, pin grid and inspector arrive with the review screen."
-                  increment={4}
-                />
-              }
-            />
+            <Route path="/review/:runId" element={<Review />} />
             <Route
               path="/calendar"
               element={

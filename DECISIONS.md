@@ -43,3 +43,14 @@ increment where each lives:
 | "Refresh boards" | Increment 6 |
 | "Retry failed" | Increment 7 (Content360 push) |
 | Brand switcher menu | Deferred until a second shop exists (see #1) |
+
+## 6. Chrome extension for blocked-marketplace ingestion
+
+Agreed 2026-07-30: keep in the back pocket, sequenced after the core loop
+(increments 4–7). A small extension running in the seller's own browser can
+capture listing data from Etsy/Amazon pages that block server-side fetching —
+free, reliable, and complementary to the official Etsy API. Decide between the
+Etsy API and the extension (or both) when ingestion pain is real. An extension
+does NOT help with AI calls, image generation, scheduling, or the Content360
+push — those stay server-side, and programmatic Claude calls always need an
+Anthropic API key regardless of any Claude subscription.

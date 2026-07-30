@@ -1,13 +1,15 @@
 import Fastify from 'fastify';
 import { registerIngestRoutes } from './ingest/index.js';
+import { registerCopywriteRoutes } from './copywrite/index.js';
 
-// API skeleton. Later increments add: Claude copywriting (4), crop rendering
-// jobs (5), scheduling (6), Content360 push (7).
+// API skeleton. Later increments add: crop rendering jobs (5), scheduling (6),
+// Content360 push (7).
 const app = Fastify({ logger: true });
 
 app.get('/api/health', async () => ({ ok: true }));
 
 registerIngestRoutes(app);
+registerCopywriteRoutes(app);
 
 const port = Number(process.env.PORT ?? 3001);
 

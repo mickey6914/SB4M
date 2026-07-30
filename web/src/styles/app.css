@@ -605,6 +605,268 @@ html, body, #root {
   color: var(--color-accent-700);
 }
 
+/* — review screen — */
+
+.review-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 32px;
+  border-bottom: 2px solid var(--color-text);
+}
+
+.review-bar-summary {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.crop-tabs {
+  display: inline-flex;
+  border: 2px solid var(--color-text);
+}
+
+.crop-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-neutral-700);
+}
+
+.crop-tab + .crop-tab {
+  border-left: 2px solid var(--color-divider);
+}
+
+.crop-tab.active {
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.review-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.review-counts {
+  font-size: 12.5px;
+  color: var(--color-neutral-700);
+  white-space: nowrap;
+}
+
+.review-body {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  align-items: start;
+}
+
+.review-left {
+  padding: 28px 32px 40px;
+  min-width: 0;
+}
+
+/* — crop preview panel — */
+
+.crop-panel {
+  border: 2px solid var(--color-text);
+  padding: 20px;
+  margin-bottom: 28px;
+}
+
+.crop-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.crop-panel-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.crop-panel-note {
+  font-size: 12.5px;
+  color: var(--color-neutral-700);
+  text-align: right;
+  max-width: 20em;
+}
+
+.crop-panel-body {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  align-items: end;
+}
+
+.crop-frame {
+  position: relative;
+  width: 100%;
+  background: var(--color-neutral-200);
+  overflow: hidden;
+}
+
+.crop-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.crop-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 5px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crop-overlay-top {
+  top: 0;
+}
+
+.crop-overlay-middle {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.crop-overlay-bottom {
+  bottom: 0;
+}
+
+.crop-caption {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+/* — pin grid — */
+
+.pin-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.pin-card {
+  position: relative;
+  padding: 8px;
+  border: 2px solid var(--color-divider);
+  cursor: pointer;
+}
+
+.pin-card:hover {
+  border-color: var(--color-accent-400);
+}
+
+.pin-card.selected {
+  border-color: var(--color-accent);
+}
+
+.pin-flag {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+}
+
+.pin-media {
+  position: relative;
+  width: 100%;
+  background: var(--color-neutral-200);
+  overflow: hidden;
+}
+
+.pin-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 8px;
+}
+
+.pin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* — inspector — */
+
+.inspector {
+  border-left: 2px solid var(--color-text);
+  padding: 28px;
+  min-height: 820px;
+  display: flex;
+  flex-direction: column;
+}
+
+.field-block {
+  margin-top: 18px;
+}
+
+.field-label {
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  margin-bottom: 6px;
+}
+
+.rewrite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.rewrite-note {
+  font-size: 12.5px;
+  color: var(--color-neutral-700);
+}
+
+.btn-small {
+  font-size: 12.5px;
+  padding: 5px 10px;
+}
+
+.kw-note {
+  font-size: 12.5px;
+  color: var(--color-accent-700);
+  margin: 8px 0 0;
+}
+
+.inspector-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
 /* — static placeholder pages (replaced in later increments) — */
 
 .page {

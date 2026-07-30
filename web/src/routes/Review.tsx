@@ -1,0 +1,315 @@
+import { useParams } from 'react-router-dom';
+import { assetCount, CROPS, heroImages, SCENE_CATALOG, useRun, type Crop } from '../state/run';
+import {
+  CROP_NETWORKS,
+  ReviewProvider,
+  useReview,
+  type OverlayPos,
+} from '../state/review';
+
+// Review screen, README section 7: crop preview panel, pin grid with crop
+// tabs, and the inspector with live Claude copywriting.
+
+const CROP_RATIOS: Record<Crop, string> = {
+  '2:3': '2 / 3',
+  '1:1': '1 / 1',
+  '4:5': '4 / 5',
+  '9:16': '9 / 16',
+};
+
+function CropPreview({ src }: { src?: string }) {
+  const { review } = useReview();
+  const pin = review.pins[review.pin - 1];
+  return (
+    <div className="crop-panel">
+      <div className="crop-panel-header">
+        <div>
+          <div className="page-kicker" style={{ marginBottom: 4 }}>
+            All four crops · Pin {review.pin}
+          </div>
+          <div className="crop-panel-title">{pin.title}</div>
+        </div>
+        <div className="crop-panel-note">
+          Overlay sits at the {review.overlayPos} of every crop — re-placed per ratio, never
+          sliced.
+        </div>
+      </div>
+      <div className="crop-panel-body">
+        {CROPS.map((crop) => (
+          <div key={crop}>
+            <div className="crop-frame" style={{ aspectRatio: CROP_RATIOS[crop] }}>
+              {src && <img src={src} alt="" className="crop-img" />}
+              <div className={`crop-overlay crop-overlay-${review.overlayPos}`}>
+                {review.overlay}
+              </div>
+            </div>
+            <div className="crop-caption">
+              {crop} · {CROP_NETWORKS[crop]}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PinGrid({ src, networks }: { src?: string; networks: string[] }) {
+  const { review, dispatch } = useReview();
+  const hidden = review.pins.length - review.shown;
+  return (
+    <>
+      <div className="pin-grid">
+        {review.pins.slice(0, review.shown).map((pin, i) => {
+          const n = i + 1;
+          return (
+            <div
+              key={n}
+              className={review.pin === n ? 'pin-card selected' : 'pin-card'}
+              onClick={() => dispatch({ type: 'selectPin', pin: n })}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  dispatch({ type: 'selectPin', pin: n });
+                }
+              }}
+            >
+              {pin.flagged && <span className="pin-flag">Keyword flagged</span>}
+              <div className="pin-media" style={{ aspectRatio: CROP_RATIOS[review.crop] }}>
+                {src && <img src={src} alt="" className="crop-img" />}
+              </div>
+              <div className="pin-title">{pin.title}</div>
+              <div className="pin-chips">
+                {networks.map((net, j) => (
+                  <span key={net} className={j === 0 ? 'tag tag-accent' : 'tag tag-neutral'}>
+                    {net}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {hidden > 0 && (
+        <button className="btn btn-ghost" type="button" style={{ marginTop: 16 }} onClick={() => dispatch({ type: 'showMore' })}>
+          Show {hidden} more pins
+        </button>
+      )}
+      <p className="rail-note">Rejecting one crop keeps the rest of the pin.</p>
+    </>
+  );
+}
+
+function Inspector() {
+  const { run } = useRun();
+  const { review, dispatch } = useReview();
+  const pin = review.pins[review.pin - 1];
+
+  const rewrite = async () => {
+    if (review.writing) return;
+    dispatch({ type: 'writeStart' });
+    try {
+      const res = await fetch('/api/copywrite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          product: review.product,
+          scenes: run.scenes.map((s) => SCENE_CATALOG[s - 1]),
+          styleDirection: run.styleDirection || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok && json.copy) {
+        dispatch({
+          type: 'writeSuccess',
+          title: json.copy.title,
+          desc: json.copy.desc,
+          keywords: json.copy.keywords,
+        });
+      } else {
+        dispatch({
+          type: 'writeFailure',
+          message: json.message ?? 'Could not write that one — try again.',
+        });
+      }
+    } catch {
+      dispatch({ type: 'writeFailure', message: 'Could not write that one — try again.' });
+    }
+  };
+
+  return (
+    <aside className="inspector">
+      <div className="page-kicker">
+        Pin {review.pin} of {review.pins.length} · {review.crop} crop
+      </div>
+
+      <div className="field-block">
+        <div className="field-label">Product</div>
+        <textarea
+          className="input"
+          style={{ minHeight: 70 }}
+          value={review.product}
+          onChange={(e) => dispatch({ type: 'setProduct', text: e.target.value })}
+          placeholder="The product description handed to the model"
+        />
+      </div>
+
+      <div className="field-block">
+        <div className="field-label">Title</div>
+        <input
+          className="input"
+          type="text"
+          value={pin.title}
+          onChange={(e) => dispatch({ type: 'setTitle', text: e.target.value })}
+        />
+      </div>
+
+      <div className="field-block">
+        <div className="field-label">Description</div>
+        <textarea
+          className="input"
+          style={{ minHeight: 110 }}
+          value={pin.desc}
+          onChange={(e) => dispatch({ type: 'setDesc', text: e.target.value })}
+        />
+      </div>
+
+      <div className="rewrite-row">
+        <span className="rewrite-note">#ad added by workspace rule.</span>
+        <button
+          className="btn btn-secondary btn-small"
+          type="button"
+          disabled={review.writing}
+          onClick={rewrite}
+        >
+          {review.writing ? 'Writing…' : 'Rewrite with AI'}
+        </button>
+      </div>
+      {review.writeError && <p className="ingest-error">{review.writeError}</p>}
+
+      <div className="field-block">
+        <div className="field-label">Keywords</div>
+        {pin.keywords.length === 0 ? (
+          <p className="rail-note" style={{ margin: '4px 0 0' }}>
+            No keywords yet — Rewrite with AI drafts five.
+          </p>
+        ) : (
+          <div className="choice-list" style={{ marginTop: 6 }}>
+            {pin.keywords.map((k, i) => (
+              <label key={k.text} className="choice-row" style={{ fontSize: 13.5 }}>
+                <input
+                  type="checkbox"
+                  checked={k.on}
+                  onChange={() => dispatch({ type: 'toggleKeyword', index: i })}
+                />
+                {k.text}
+              </label>
+            ))}
+          </div>
+        )}
+        {pin.kwNote && <p className="kw-note">{pin.kwNote}</p>}
+      </div>
+
+      <div className="field-block">
+        <div className="field-label">Text overlay</div>
+        <div className="seg" style={{ marginBottom: 10 }}>
+          {(['top', 'middle', 'bottom'] as OverlayPos[]).map((pos) => (
+            <label key={pos} className="seg-opt">
+              <input
+                type="radio"
+                name="overlay-pos"
+                checked={review.overlayPos === pos}
+                onChange={() => dispatch({ type: 'setOverlayPos', pos })}
+              />
+              {pos[0].toUpperCase() + pos.slice(1)}
+            </label>
+          ))}
+        </div>
+        <input
+          className="input"
+          type="text"
+          value={review.overlay}
+          onChange={(e) => dispatch({ type: 'setOverlay', text: e.target.value })}
+        />
+      </div>
+
+      <div className="inspector-actions">
+        <button className="btn btn-primary" type="button" onClick={() => dispatch({ type: 'approve' })}>
+          Approve pin
+        </button>
+        <button className="btn btn-secondary" type="button" onClick={() => dispatch({ type: 'reject' })}>
+          Reject
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function ReviewBody({ runId }: { runId: string }) {
+  const { run } = useRun();
+  const { review, dispatch } = useReview();
+  const src = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
+  const flagged = review.pins.filter((p) => p.flagged).length;
+  const networks =
+    run.fanOut === 'pinterest'
+      ? ['Pinterest']
+      : run.fanOut === 'pinterest_facebook'
+        ? ['Pinterest', 'FB']
+        : ['Pinterest', 'FB', 'IG'];
+
+  return (
+    <>
+      <div className="review-bar">
+        <div className="review-bar-summary">
+          Run {runId} · {review.pins.length} pins · {assetCount(run)} assets
+        </div>
+        <div className="crop-tabs">
+          {CROPS.map((crop) => (
+            <button
+              key={crop}
+              type="button"
+              className={review.crop === crop ? 'crop-tab active' : 'crop-tab'}
+              onClick={() => dispatch({ type: 'setCrop', crop })}
+            >
+              {crop}
+            </button>
+          ))}
+        </div>
+        <div className="review-bar-actions">
+          <span className="review-counts">
+            {review.approved} approved · {flagged} flagged
+          </span>
+          <button className="btn btn-secondary" type="button" onClick={() => dispatch({ type: 'approveAll' })}>
+            Approve all
+          </button>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled
+            title="The Content360 push arrives in increment 7"
+          >
+            Push to Content360
+          </button>
+        </div>
+      </div>
+      <div className="review-body">
+        <div className="review-left">
+          <CropPreview src={src} />
+          <PinGrid src={src} networks={networks} />
+        </div>
+        <Inspector />
+      </div>
+    </>
+  );
+}
+
+export default function Review() {
+  const { run } = useRun();
+  const { runId } = useParams();
+  return (
+    <ReviewProvider run={run}>
+      <ReviewBody runId={runId ?? '15'} />
+    </ReviewProvider>
+  );
+}
