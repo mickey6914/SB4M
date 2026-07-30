@@ -8,25 +8,18 @@ import Scenes from './routes/wizard/Scenes';
 import Progress from './routes/wizard/Progress';
 import Review from './routes/Review';
 import Calendar from './routes/Calendar';
+import Dashboard from './routes/Dashboard';
 import { RunProvider } from './state/run';
+import { PushProvider } from './state/push';
 
 export default function App() {
   return (
     <BrowserRouter>
       <RunProvider>
+        <PushProvider>
         <Routes>
           <Route element={<AppShell />}>
-            <Route
-              path="/"
-              element={
-                <Placeholder
-                  kicker="Step one of one"
-                  title="Paste a product link."
-                  lead="Etsy, Shopify or Amazon. Pin-Post Studio pulls the listing images, then asks you four short questions — nothing else on this screen needs you today."
-                  increment={6}
-                />
-              }
-            />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/run/product" element={<Product />} />
             <Route path="/run/hero" element={<Hero />} />
             <Route path="/run/volume" element={<Volume />} />
@@ -59,6 +52,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </PushProvider>
       </RunProvider>
     </BrowserRouter>
   );

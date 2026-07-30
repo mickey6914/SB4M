@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { usePush } from '../state/push';
 import { assetCount, CROPS, heroImages, SCENE_CATALOG, useRun, type Crop } from '../state/run';
 import {
   CROP_NETWORKS,
@@ -301,9 +302,71 @@ function Inspector() {
 function ReviewBody({ runId }: { runId: string }) {
   const { run } = useRun();
   const { review, dispatch } = useReview();
+  const { setBatch, setPushError } = usePush();
+  const navigate = useNavigate();
+  const [pushing, setPushing] = useState(false);
+  const [inlinePushError, setInlinePushError] = useState('');
   const src = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
   const rendered = useRenderedCrops(src, review.overlay, review.overlayPos);
   const flagged = review.pins.filter((p) => p.flagged).length;
+
+  // Build the outgoing batch: one post per approved pin per fanned-out
+  // network, each carrying the asset at that network's crop.
+  const push = async () => {
+    if (pushing) return;
+    setPushing(true);
+    setInlinePushError('');
+    const networkCrop: Record<string, Crop> = {
+      pinterest: '2:3',
+      facebook: '1:1',
+      instagram: '4:5',
+    };
+    const wanted =
+      run.fanOut === 'pinterest'
+        ? (['pinterest'] as const)
+        : run.fanOut === 'pinterest_facebook'
+          ? (['pinterest', 'facebook'] as const)
+          : (['pinterest', 'facebook', 'instagram'] as const);
+
+    const posts = review.pins.slice(0, review.approved).flatMap((pin, i) =>
+      wanted.map((network) => ({
+        localId: `${runId}#${i + 1}#${network}`,
+        network,
+        scheduledAt: new Date(Date.now() + (i + 1) * 86_400_000).toISOString(),
+        caption: pin.desc,
+        assetUrl: rendered?.[networkCrop[network]] ?? src ?? '',
+        ...(network === 'pinterest'
+          ? {
+              pinterest: {
+                title: pin.title,
+                link: run.listing?.url ?? '',
+              },
+            }
+          : {}),
+        ...(network === 'facebook' ? { facebook: { postType: 'post' as const } } : {}),
+      }))
+    );
+
+    try {
+      const res = await fetch('/api/content360/push', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ runId, posts }),
+      });
+      const json = await res.json();
+      if (json.ok && json.batch) {
+        setBatch(json.batch);
+        setPushError('');
+        navigate('/');
+      } else {
+        setInlinePushError(json.message ?? 'The push did not go through — try again.');
+      }
+    } catch {
+      setInlinePushError('Could not reach the server — the batch was not pushed.');
+    } finally {
+      setPushing(false);
+    }
+  };
   const networks =
     run.fanOut === 'pinterest'
       ? ['Pinterest']
@@ -339,13 +402,17 @@ function ReviewBody({ runId }: { runId: string }) {
           <button
             className="btn btn-primary"
             type="button"
-            disabled
-            title="The Content360 push arrives in increment 7"
+            disabled={pushing || review.approved === 0}
+            title={review.approved === 0 ? 'Approve at least one pin first' : undefined}
+            onClick={push}
           >
-            Push to Content360
+            {pushing ? 'Pushing…' : 'Push to Content360'}
           </button>
         </div>
       </div>
+      {inlinePushError && (
+        <div className="push-error-bar">{inlinePushError}</div>
+      )}
       <div className="review-body">
         <div className="review-left">
           <CropPreview src={src} rendered={rendered} />
