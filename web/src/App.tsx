@@ -7,6 +7,7 @@ import Volume from './routes/wizard/Volume';
 import Scenes from './routes/wizard/Scenes';
 import Progress from './routes/wizard/Progress';
 import Review from './routes/Review';
+import Calendar from './routes/Calendar';
 import { RunProvider } from './state/run';
 
 export default function App() {
@@ -32,17 +33,7 @@ export default function App() {
             <Route path="/run/scenes" element={<Scenes />} />
             <Route path="/run/:id/progress" element={<Progress />} />
             <Route path="/review/:runId" element={<Review />} />
-            <Route
-              path="/calendar"
-              element={
-                <Placeholder
-                  kicker="Calendar"
-                  title="August 2026"
-                  lead="The cross-network month: Pinterest, Facebook and Instagram posts for the same product on one grid, with gap detection and sync state."
-                  increment={6}
-                />
-              }
-            />
+            <Route path="/calendar" element={<Calendar />} />
             <Route
               path="/library"
               element={
