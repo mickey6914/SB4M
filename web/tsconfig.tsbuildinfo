@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/components/AppShell.tsx","./src/components/icons.tsx","./src/routes/Placeholder.tsx"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/AppShell.tsx","./src/components/StepRail.tsx","./src/components/Tile.tsx","./src/components/icons.tsx","./src/data/workspace.ts","./src/routes/Placeholder.tsx","./src/routes/wizard/Hero.tsx","./src/routes/wizard/Product.tsx","./src/routes/wizard/Progress.tsx","./src/routes/wizard/Scenes.tsx","./src/routes/wizard/Volume.tsx","./src/state/run.tsx"],"version":"5.9.3"}

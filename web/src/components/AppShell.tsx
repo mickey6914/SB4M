@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { activeShop, WORKSPACE } from '../data/workspace';
 import {
   CalendarIcon,
   CheckIcon,
@@ -54,18 +55,20 @@ export default function AppShell() {
 
         <div className="sidebar-workspace">
           <div className="sidebar-workspace-kicker">Workspace</div>
-          <div className="sidebar-workspace-name">Paula LaPlace's Team</div>
-          <div className="sidebar-workspace-meta">Content360 · 34b00c5d</div>
+          <div className="sidebar-workspace-name">{WORKSPACE.name}</div>
+          <div className="sidebar-workspace-meta">Content360 · {WORKSPACE.content360Id}</div>
         </div>
       </aside>
 
       <main className="main">
         <header className="topbar">
           <div className="topbar-brand">
-            <div className="topbar-avatar">EAV</div>
+            <div className="topbar-avatar">{activeShop.initials}</div>
             <div>
-              <div className="topbar-shop-name">Deals and Steals For Real</div>
-              <div className="topbar-shop-networks">Pinterest · Facebook Page · Instagram</div>
+              <div className="topbar-shop-name">{activeShop.name}</div>
+              <div className="topbar-shop-networks">
+                {activeShop.source} · {activeShop.networks}
+              </div>
             </div>
             <span className="topbar-chevron">
               <ChevronDownIcon />
