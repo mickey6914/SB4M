@@ -54,3 +54,31 @@ Etsy API and the extension (or both) when ingestion pain is real. An extension
 does NOT help with AI calls, image generation, scheduling, or the Content360
 push — those stay server-side, and programmatic Claude calls always need an
 Anthropic API key regardless of any Claude subscription.
+
+## 7. Image generation: hybrid, with a provider setting
+
+Agreed 2026-07-31. The constraint is quality WITHOUT product alteration, so
+full-AI mockups are ruled out: handing the product photo to a generative model
+means it is redrawn, and no prompt makes that guarantee-able.
+
+Hybrid instead: the image model generates only an EMPTY scene background; the
+seller's real product photograph is composited on top by our own renderer and
+never passes through a generative model, so its pixels cannot be altered.
+
+Provider is a setting (SCENE_PROVIDER=google|openai|procedural), so switching
+is an env change rather than a rebuild:
+
+| Setting | Model (override with GOOGLE_IMAGE_MODEL / OPENAI_IMAGE_MODEL) | Key |
+| --- | --- | --- |
+| google | imagen-4.0-fast-generate-001 (~$0.02/image) | GEMINI_API_KEY |
+| openai | gpt-image-1-mini (~$0.005/image) | OPENAI_API_KEY |
+| procedural | built-in gradient backdrop, no cost | none |
+
+Three backgrounds per run, reused across its pins, so a run costs pennies.
+"Nano Banana" is Google's Gemini image family — reachable by pointing
+GOOGLE_IMAGE_MODEL at gemini-3-pro-image-preview et al. Consumer ChatGPT /
+Gemini / Claude subscriptions do not cover programmatic calls; API keys do.
+
+Escape hatch if the composite blend is not good enough on a product type
+(mugs, apparel): swap this one step for a product-photography API such as
+Claid or Photoroom. Nothing else in the pipeline changes.

@@ -23,6 +23,45 @@ const CROP_RATIOS: Record<Crop, string> = {
 
 type Rendered = Record<string, string>;
 
+// Hybrid scene mockup: the server generates an empty background for the
+// pin's scene and composites the seller's real product photo onto it. The
+// product is never sent through a generative model, so it cannot be altered.
+// Falls back to the plain product photo whenever a mockup isn't available.
+function useSceneMockup(product: string | undefined, scene: string, styleDirection: string) {
+  const [mockup, setMockup] = useState<string | null>(null);
+  const [provider, setProvider] = useState<string>('');
+  useEffect(() => {
+    if (!product || !scene) {
+      setMockup(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/scenes/mockup', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scene, styleDirection, product }),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.ok && json.image) {
+          setMockup(json.image);
+          setProvider(json.provider === 'procedural' ? '' : json.provider);
+        } else {
+          setMockup(null);
+        }
+      } catch {
+        if (!cancelled) setMockup(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [product, scene, styleDirection]);
+  return { mockup, provider };
+}
+
 // Fetch the four rendered crops whenever the source or overlay changes,
 // debounced so typing in the overlay field doesn't re-render per keystroke.
 function useRenderedCrops(src: string | undefined, overlay: string, pos: OverlayPos) {
@@ -68,7 +107,7 @@ function CropPreview({ src, rendered }: { src?: string; rendered: Rendered | nul
         </div>
         <div className="crop-panel-note">
           Overlay sits at the {review.overlayPos} of every crop — re-placed per ratio, never
-          sliced.
+          sliced. Scene: {pin.scene} · your product photo is composited unaltered.
         </div>
       </div>
       <div className="crop-panel-body">
@@ -306,7 +345,11 @@ function ReviewBody({ runId }: { runId: string }) {
   const navigate = useNavigate();
   const [pushing, setPushing] = useState(false);
   const [inlinePushError, setInlinePushError] = useState('');
-  const src = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
+  const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
+  const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
+  const { mockup } = useSceneMockup(product, selectedScene, run.styleDirection);
+  // Crops render from the scene mockup when there is one, else the raw photo.
+  const src = mockup ?? product;
   const rendered = useRenderedCrops(src, review.overlay, review.overlayPos);
   const flagged = review.pins.filter((p) => p.flagged).length;
 

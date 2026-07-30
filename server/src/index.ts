@@ -4,6 +4,7 @@ import { registerCopywriteRoutes } from './copywrite/index.js';
 import { registerCropRoutes } from './crops/index.js';
 import { registerScheduleRoutes } from './schedule/index.js';
 import { registerPushRoutes } from './push/index.js';
+import { registerSceneRoutes } from './scenes/index.js';
 
 const app = Fastify({ logger: true, bodyLimit: 20_000_000 });
 
@@ -14,6 +15,7 @@ registerCopywriteRoutes(app);
 registerCropRoutes(app);
 registerScheduleRoutes(app);
 registerPushRoutes(app);
+registerSceneRoutes(app);
 
 const port = Number(process.env.PORT ?? 3001);
 

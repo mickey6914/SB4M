@@ -14,6 +14,7 @@ export type Pin = {
   keywords: Keyword[];
   kwNote: string;
   flagged: boolean;
+  scene: string; // the inspiration scene this pin's mockup is built in
 };
 
 export type OverlayPos = 'top' | 'middle' | 'bottom';
@@ -50,6 +51,7 @@ export function seedReview(run: RunState): ReviewState {
     kwNote: '',
     // Flag every fifth pin until real keyword QA exists (illustrative).
     flagged: (i + 1) % 5 === 0,
+    scene: sceneNames[i % sceneNames.length],
   }));
   return {
     pins,
