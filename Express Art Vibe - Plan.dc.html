@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-49dd4cf5-ae51-4ac8-8124-19dbf858d814/styles.css">
+<script src="_ds/modernist-49dd4cf5-ae51-4ac8-8124-19dbf858d814/_ds_bundle.js"></script>
+<script src="./doc-page.js"></script>
+<style>
+doc-page:not(:defined){visibility:hidden}
+body{font-family:var(--font-body)}
+a{color:var(--color-accent-700);text-decoration:underline}
+a:hover{color:var(--color-accent-600)}
+h1,h2,h3{font-family:var(--font-heading);font-weight:800;letter-spacing:-0.01em;text-align:left}
+</style>
+</helmet>
+<doc-page margin="0.8in">
+<div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--color-text);padding-bottom:8px;margin-bottom:28px">
+<span style="font-family:var(--font-heading);font-weight:800;font-size:13px;letter-spacing:0.14em;text-transform:uppercase">Express Art Vibe · Pin-Post Studio</span>
+<span style="font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Prototype plan · v1 · July 2026</span>
+</div>
+
+<h1 style="font-size:40px;line-height:1.05;margin:0 0 12px">A Pinterest-first pin factory that feeds Content360</h1>
+<p style="font-size:17px;line-height:1.6;margin:0 0 8px;color:var(--color-neutral-800);max-width:44em">One product link in. A month of on-brand pins out. Every finished pin lands in Content360 on a schedule you can see across Pinterest, Facebook and Instagram in a single calendar.</p>
+<p style="font-size:13px;color:var(--color-neutral-700);margin:0 0 24px"><em>Express Art Vibe Pin-Post Studio — no mark yet, so the wordmark carries the brand until there is one.</em></p>
+
+<hr class="hr">
+
+<h2 style="font-size:22px;margin:28px 0 10px">1. What this app is (and is not)</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">Pinsflow's value was never the scheduling — it was turning one listing into thirty distinct, SEO-written pins in a couple of minutes. Content360 already does scheduling well, across more networks than Pinsflow ever will, and it exposes an API key on your workspace settings page.</p>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">So Pin-Post Studio is the <strong>generation and review layer</strong>. It owns: product ingestion, hero-image choice, scene direction, AI mockups, titles, descriptions, keywords, text overlays, and the fan-out decision (which pin also becomes a Facebook post and an Instagram post). It hands the finished assets and their post times to Content360 and never tries to be an inbox, a link-in-bio, or a sales bot.</p>
+<table class="table" style="font-size:13.5px;width:100%;margin:16px 0 4px">
+<thead><tr><th style="text-align:left">Owned by Pin-Post Studio</th><th style="text-align:left">Owned by Content360</th></tr></thead>
+<tbody>
+<tr><td>Product link ingest, image pull</td><td>Social account auth (Pinterest, FB page, IG business)</td></tr>
+<tr><td>AI mockups, titles, SEO descriptions, keywords</td><td>Actual publishing and retries</td></tr>
+<tr><td>Text overlays and branding</td><td>Board selection at post level, labels, groups</td></tr>
+<tr><td>Cross-network plan and pacing</td><td>Unified inbox, link in bio, media library of record</td></tr>
+</tbody>
+</table>
+<p style="font-size:13px;color:var(--color-neutral-700);margin:6px 0 0">Table 1. Division of responsibility — the seam is the handoff, not a rebuild.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">2. The differentiator: one cross-network calendar</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px" data-x>Neither tool shows you a single month where a pin, its Facebook echo and its Instagram post sit on the same row. That is the screen the whole prototype is built to earn. Concretely, when a run finishes you choose a <strong>fan-out pattern</strong> per pin — Pinterest only, Pinterest + Facebook, or all three — and Pin-Post Studio spaces them so the same product never lands twice in one day on one network. The calendar colour-codes by network, flags gaps ("Instagram is empty after the 14th"), and marks anything that failed to publish on the Content360 side.</p>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">Fan-out is a real design job, not a copy-paste: a pin is 2:3 and the other networks are not. Every fanned-out asset is re-cropped from the same mockup — <strong>1:1 for a square feed post, 4:5 for the taller Instagram frame, 9:16 for a story or reel</strong> — with the text overlay re-positioned so it survives the crop rather than being sliced. The review grid shows all four ratios of a pin side by side, and rejecting one crop does not reject the pin.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">3. Screens in the prototype</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">Nine screens, in the order you'd walk them. Each generation step is one decision on one screen — the chunked, low-clutter pattern your guide called for — while the dashboard home stays denser because it is a status surface, not a task.</p>
+<table class="table" style="font-size:13.5px;width:100%;margin:12px 0 4px">
+<thead><tr><th style="text-align:left;width:34px">#</th><th style="text-align:left">Screen</th><th style="text-align:left">The one thing it does</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>Dashboard home</strong></td><td>Status at a glance + a single "Start a run" field. The hero screen attached with this plan.</td></tr>
+<tr><td>2</td><td>Run: product</td><td>Paste an Etsy / Shopify / Amazon link, or drop images.</td></tr>
+<tr><td>3</td><td>Run: hero image</td><td>Pick the one image the mockups build from.</td></tr>
+<tr><td>4</td><td>Run: volume + direction</td><td>3 / 7 / 30 pins, plus a free-text steer ("fall colours, no people").</td></tr>
+<tr><td>5</td><td>Run: scenes</td><td>Choose three inspiration scenes, or Surprise me.</td></tr>
+<tr><td>6</td><td>Generating</td><td>Honest progress: mockups, titles, descriptions, keywords.</td></tr>
+<tr><td>7</td><td>Review grid</td><td>Approve, reject or edit pins; bulk-apply overlay and #ad.</td></tr>
+<tr><td>8</td><td>Fan-out + schedule</td><td>Per-pin network pattern, pacing, board per network.</td></tr>
+<tr><td>9</td><td>Calendar</td><td>The cross-network month, with Content360 sync state.</td></tr>
+</tbody>
+</table>
+<p style="font-size:13px;color:var(--color-neutral-700);margin:6px 0 0">Table 2. Library and Connections screens exist as stubs the nav links to; build them only if you want them.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">4. Scale the design assumes</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">This was the question you wanted clarified — it only matters because it decides whether the calendar is a comfortable grid or a dense list. The assumption I've designed to: <strong>one brand, 30 pins a month, fanned out to three networks — roughly 90 scheduled posts, about three a day.</strong> That fits a normal month grid with 2–3 chips per cell and no scrolling inside a day. If you later run several shops, a brand switcher in the top bar covers it without changing the layout; if you go past ~6 posts a day the calendar needs a week view as its default instead.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">5. How the AI writing works</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">In the prototype, yes — the review screen can call Claude live to write real titles, SEO descriptions and keyword sets from your product text, so you are reading genuine output rather than lorem ipsum. That runs inside the prototype and costs you nothing to click.</p>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">One caveat worth knowing now, because it shapes the real build: a Claude <em>subscription</em> covers chat, not an app calling the model on a server. A shipped Pin-Post Studio needs an Anthropic API key with its own usage billing. Text is cheap at this volume; the expensive part is <strong>image generation</strong> for the mockups, which Claude does not do — that would be a separate image model. The prototype uses your dropped product photos in the mockup slots so you can judge the layout before committing to any of that.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">6. Workspace rules</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">Affiliate compliance is a <strong>workspace-level rule</strong>, not a per-pin checkbox: set "#ad required on affiliate links" once in Connections and every description the AI writes carries it, with a hard block at push time on anything missing it. The same panel holds the other set-once rules — default text overlay and branding, posting window (9am–5pm), maximum posts per network per day, and the default fan-out pattern.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">7. The Content360 handoff</h2>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">Your screenshots show the three pieces this needs: a workspace API id under Settings, connected Pinterest / Facebook page / Instagram profiles, and a Bulk Posts path that already accepts many posts at once with per-platform options (Pinterest wants a title, link and board; Facebook wants post vs reel vs story). Pin-Post Studio's schedule step maps onto exactly those fields.</p>
+<p style="font-size:15px;line-height:1.65;margin:0 0 12px">Their API accepts post creation, so the real build can push a finished run straight in — no CSV, no manual re-entry. In the prototype the handoff is simulated but visible in exactly the shape the API will take: a "Push to Content360" action, a per-post sync badge (queued → pushed → published → failed), and a Connections panel showing the workspace id it pushes into. That makes the integration reviewable before anyone writes a line of API code, and it means the only untested part of the real build is credentials.</p>
+
+<h2 style="font-size:22px;margin:30px 0 10px">8. Suggested build order</h2>
+<ol style="font-size:15px;line-height:1.7;margin:0 0 12px;padding-left:22px">
+<li><strong>Now:</strong> react to the hero dashboard screen — density, wording, what you want to see first thing in the morning.</li>
+<li><strong>Next:</strong> the run wizard (screens 2–6) as a clickable flow with your real product photos.</li>
+<li><strong>Then:</strong> review grid with live Claude copywriting and the four crop ratios per pin.</li>
+<li><strong>Then:</strong> fan-out + the cross-network calendar, including the sync badges.</li>
+<li><strong>Later, if wanted:</strong> mobile companion — a read-only calendar and an approve/reject swipe on the review grid. Nothing in this plan blocks it.</li>
+</ol>
+
+<h2 style="font-size:22px;margin:30px 0 10px">9. Open questions</h2>
+<ul style="font-size:15px;line-height:1.7;margin:0 0 12px;padding-left:22px">
+<li>No mark yet — the prototype sets the name as a wordmark. Worth deciding whether Express Art Vibe is the parent brand above several shops, or the shop itself.</li>
+<li>Do Facebook and Instagram captions reuse the Pinterest description, or get their own shorter voice? (My assumption: their own, generated in the same pass.)</li>
+<li>Which crop is the default fan-out for Instagram — 4:5 feed, or 9:16 story?</li>
+<li>Should a run be able to draw on more than one product link at once, for a themed collection?</li>
+</ul>
+</doc-page>
+</x-dc>
+</body>
+</html>
