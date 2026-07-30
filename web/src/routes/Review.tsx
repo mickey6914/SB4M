@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { assetCount, CROPS, heroImages, SCENE_CATALOG, useRun, type Crop } from '../state/run';
 import {
@@ -8,7 +9,9 @@ import {
 } from '../state/review';
 
 // Review screen, README section 7: crop preview panel, pin grid with crop
-// tabs, and the inspector with live Claude copywriting.
+// tabs, and the inspector with live Claude copywriting. The four crops are
+// real server-rendered assets (increment 5): one source image cover-cropped
+// to each network's native size with the overlay bar composited per ratio.
 
 const CROP_RATIOS: Record<Crop, string> = {
   '2:3': '2 / 3',
@@ -17,7 +20,40 @@ const CROP_RATIOS: Record<Crop, string> = {
   '9:16': '9 / 16',
 };
 
-function CropPreview({ src }: { src?: string }) {
+type Rendered = Record<string, string>;
+
+// Fetch the four rendered crops whenever the source or overlay changes,
+// debounced so typing in the overlay field doesn't re-render per keystroke.
+function useRenderedCrops(src: string | undefined, overlay: string, pos: OverlayPos) {
+  const [images, setImages] = useState<Rendered | null>(null);
+  useEffect(() => {
+    if (!src) {
+      setImages(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/crops/render', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ src, overlay, overlayPos: pos }),
+        });
+        const json = await res.json();
+        if (!cancelled && json.ok && json.images) setImages(json.images);
+      } catch {
+        // Keep the CSS fallback preview on failure.
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [src, overlay, pos]);
+  return images;
+}
+
+function CropPreview({ src, rendered }: { src?: string; rendered: Rendered | null }) {
   const { review } = useReview();
   const pin = review.pins[review.pin - 1];
   return (
@@ -38,10 +74,17 @@ function CropPreview({ src }: { src?: string }) {
         {CROPS.map((crop) => (
           <div key={crop}>
             <div className="crop-frame" style={{ aspectRatio: CROP_RATIOS[crop] }}>
-              {src && <img src={src} alt="" className="crop-img" />}
-              <div className={`crop-overlay crop-overlay-${review.overlayPos}`}>
-                {review.overlay}
-              </div>
+              {rendered?.[crop] ? (
+                // Server-rendered asset: the overlay is baked into the pixels.
+                <img src={rendered[crop]} alt="" className="crop-img" />
+              ) : (
+                <>
+                  {src && <img src={src} alt="" className="crop-img" />}
+                  <div className={`crop-overlay crop-overlay-${review.overlayPos}`}>
+                    {review.overlay}
+                  </div>
+                </>
+              )}
             </div>
             <div className="crop-caption">
               {crop} · {CROP_NETWORKS[crop]}
@@ -53,9 +96,18 @@ function CropPreview({ src }: { src?: string }) {
   );
 }
 
-function PinGrid({ src, networks }: { src?: string; networks: string[] }) {
+function PinGrid({
+  src,
+  rendered,
+  networks,
+}: {
+  src?: string;
+  rendered: Rendered | null;
+  networks: string[];
+}) {
   const { review, dispatch } = useReview();
   const hidden = review.pins.length - review.shown;
+  const cardSrc = rendered?.[review.crop] ?? src;
   return (
     <>
       <div className="pin-grid">
@@ -77,7 +129,7 @@ function PinGrid({ src, networks }: { src?: string; networks: string[] }) {
             >
               {pin.flagged && <span className="pin-flag">Keyword flagged</span>}
               <div className="pin-media" style={{ aspectRatio: CROP_RATIOS[review.crop] }}>
-                {src && <img src={src} alt="" className="crop-img" />}
+                {cardSrc && <img src={cardSrc} alt="" className="crop-img" />}
               </div>
               <div className="pin-title">{pin.title}</div>
               <div className="pin-chips">
@@ -250,6 +302,7 @@ function ReviewBody({ runId }: { runId: string }) {
   const { run } = useRun();
   const { review, dispatch } = useReview();
   const src = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
+  const rendered = useRenderedCrops(src, review.overlay, review.overlayPos);
   const flagged = review.pins.filter((p) => p.flagged).length;
   const networks =
     run.fanOut === 'pinterest'
@@ -295,8 +348,8 @@ function ReviewBody({ runId }: { runId: string }) {
       </div>
       <div className="review-body">
         <div className="review-left">
-          <CropPreview src={src} />
-          <PinGrid src={src} networks={networks} />
+          <CropPreview src={src} rendered={rendered} />
+          <PinGrid src={src} rendered={rendered} networks={networks} />
         </div>
         <Inspector />
       </div>
