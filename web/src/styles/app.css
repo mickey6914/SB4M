@@ -1,0 +1,244 @@
+/* App shell — built on the Modernist tokens (see styles/modernist.css).
+   Values follow design_handoff_pin_post_studio/README.md: 236px sidebar,
+   2px rules, zero radius, Archivo throughout. */
+
+html, body, #root {
+  min-height: 100vh;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+/* — sidebar — */
+
+.sidebar {
+  border-right: 2px solid var(--color-text);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0 20px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar-brand {
+  padding: 0 20px 20px;
+  border-bottom: 2px solid var(--color-text);
+}
+
+.sidebar-wordmark {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.sidebar-product {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+  margin-top: 7px;
+  font-weight: 600;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 20px;
+  font-size: 14px;
+  text-decoration: none;
+  font-weight: 400;
+  color: var(--color-text);
+  background: transparent;
+}
+
+.nav-item:hover {
+  background: var(--color-accent-100);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.nav-item.active {
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.nav-item.active:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.nav-item-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-badge {
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.nav-item.active .nav-badge {
+  background: #fff;
+  color: var(--color-accent-700);
+}
+
+.sidebar-workspace {
+  margin-top: auto;
+  padding: 16px 20px 0;
+  border-top: 2px solid var(--color-divider);
+}
+
+.sidebar-workspace-kicker {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  margin-bottom: 6px;
+}
+
+.sidebar-workspace-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.sidebar-workspace-meta {
+  font-size: 12px;
+  color: var(--color-neutral-700);
+  margin-top: 2px;
+}
+
+/* — main pane + top bar — */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 32px;
+  border-bottom: 2px solid var(--color-text);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.topbar-avatar {
+  width: 34px;
+  height: 34px;
+  background: var(--color-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.topbar-shop-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.topbar-shop-networks {
+  font-size: 11.5px;
+  color: var(--color-neutral-700);
+}
+
+.topbar-chevron {
+  color: var(--color-neutral-600);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 2px solid var(--color-divider);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.topbar-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent);
+}
+
+/* — static placeholder pages (replaced in later increments) — */
+
+.page {
+  padding: 36px 32px 40px;
+}
+
+.page-kicker {
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  margin-bottom: 10px;
+}
+
+.page h1 {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 40px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+  text-align: left;
+}
+
+.page-lead {
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--color-neutral-800);
+  margin: 0 0 24px;
+  max-width: 40em;
+}
+
+.page-note {
+  display: inline-block;
+  border: 2px solid var(--color-divider);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--color-neutral-700);
+}
