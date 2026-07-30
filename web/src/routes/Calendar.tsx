@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { heroImages, useRun } from '../state/run';
+import { useWorkspace } from '../state/workspace';
 
 // The cross-network calendar, README section 8: Monday-start month grid,
 // network color coding, gap detection, and per-post sync state. Posts come
@@ -36,8 +37,10 @@ function iso(d: Date): string {
 
 export default function Calendar() {
   const { run } = useRun();
+  const { rules } = useWorkspace();
   const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[] | null>(null);
+  const [scheduleError, setScheduleError] = useState('');
 
   const hasProduct = heroImages(run).length > 0;
   const productTitle = run.listing?.title ?? 'Uploaded product';
@@ -58,10 +61,23 @@ export default function Calendar() {
             productTitle,
             pinCount: run.volume,
             fanOut: run.fanOut,
+            // Workspace rules from Connections drive the plan.
+            rules: {
+              windowStart: rules.windowStart,
+              windowEnd: rules.windowEnd,
+              maxPerNetworkPerDay: rules.maxPerNetworkPerDay,
+            },
           }),
         });
         const json = await res.json();
-        if (!cancelled && json.ok) setPosts(json.posts);
+        if (cancelled) return;
+        if (json.ok) {
+          setPosts(json.posts);
+          setScheduleError('');
+        } else {
+          setPosts(null);
+          setScheduleError(json.message ?? 'Could not build a schedule from those rules.');
+        }
       } catch {
         if (!cancelled) setPosts(null);
       }
@@ -69,7 +85,16 @@ export default function Calendar() {
     return () => {
       cancelled = true;
     };
-  }, [hasProduct, run.listing?.url, run.volume, run.fanOut, productTitle]);
+  }, [
+    hasProduct,
+    run.listing?.url,
+    run.volume,
+    run.fanOut,
+    productTitle,
+    rules.windowStart,
+    rules.windowEnd,
+    rules.maxPerNetworkPerDay,
+  ]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Post[]>();
@@ -160,7 +185,8 @@ export default function Calendar() {
             {activeNetworks.length > 1 ? 's' : ''} — {posts?.length ?? 0} posts, all queued for
             Content360.
           </p>
-          {gapMessage && <p className="calendar-gap">{gapMessage}</p>}
+          {scheduleError && <p className="calendar-gap">{scheduleError}</p>}
+          {!scheduleError && gapMessage && <p className="calendar-gap">{gapMessage}</p>}
         </div>
         <div className="calendar-header-right">
           <div className="calendar-legend">

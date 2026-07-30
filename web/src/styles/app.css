@@ -1201,6 +1201,89 @@ html, body, #root {
   margin-top: 16px;
 }
 
+/* — connections — */
+
+.conn-layout {
+  padding: 28px 32px 40px;
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 44px;
+  align-items: start;
+}
+
+.conn-list {
+  border-top: 2px solid var(--color-text);
+  margin-top: 8px;
+}
+
+.conn-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 2px solid var(--color-divider);
+}
+
+.conn-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.conn-services {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 2px solid var(--color-divider);
+  max-width: 44em;
+}
+
+.conn-service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  font-size: 14px;
+  border-bottom: 2px solid var(--color-divider);
+}
+
+.conn-window {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.conn-window .input {
+  width: 88px;
+}
+
+.conn-api-id {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px solid var(--color-divider);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
+/* — library — */
+
+.library-empty {
+  border: 2px dashed var(--color-neutral-400);
+  padding: 24px;
+  max-width: 44em;
+}
+
+.library-recipe {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px solid var(--color-divider);
+  max-width: 44em;
+}
+
 /* — static placeholder pages (replaced in later increments) — */
 
 .page {
