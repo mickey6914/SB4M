@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildPostBody,
   captionToBody,
+  extensionFor,
   findAdViolations,
   pushBatch,
   type OutgoingPost,
@@ -134,4 +135,14 @@ test('the chosen account id is what the post addresses, and keys its board', () 
   assert.deepEqual((body.versions[0].options.pinterest as { boards: unknown }).boards, {
     'account-155362': 'b1',
   });
+});
+
+// The crop renderer emits JPEG. Naming every upload .png put the wrong
+// extension on every asset in the seller's media library.
+test('an upload is named after what it actually is', () => {
+  assert.equal(extensionFor('image/jpeg'), 'jpg');
+  assert.equal(extensionFor('image/png'), 'png');
+  assert.equal(extensionFor('image/webp'), 'webp');
+  assert.equal(extensionFor('video/mp4'), 'mp4');
+  assert.equal(extensionFor('application/octet-stream'), 'png');
 });

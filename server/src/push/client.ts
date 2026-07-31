@@ -205,11 +205,24 @@ async function assetBytes(assetUrl: string): Promise<{ bytes: Buffer; mime: stri
   return { bytes: Buffer.from(await res.arrayBuffer()), mime };
 }
 
+// The crop renderer emits JPEG, uploads elsewhere may be PNG. Name the file
+// after what it actually is — Content360 reads the mime from the blob, so a
+// mismatched extension survives the upload but reads as a lie in the media
+// library afterwards.
+export function extensionFor(mime: string): string {
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpg';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/gif') return 'gif';
+  if (mime === 'video/mp4') return 'mp4';
+  return 'png';
+}
+
 // Uploads happen once per distinct asset — a pin fanned out to two networks
 // that share a crop is one upload, not two.
-export async function uploadMedia(assetUrl: string, filename: string): Promise<string> {
+export async function uploadMedia(assetUrl: string, baseName: string): Promise<string> {
   const { bytes, mime } = await assetBytes(assetUrl);
   const form = new FormData();
+  const filename = `${baseName}.${extensionFor(mime)}`;
   form.append('file', new Blob([new Uint8Array(bytes)], { type: mime }), filename);
   const json = await paced(() => api('/media', { method: 'POST', body: form }));
   const id = (json as Record<string, unknown> | null)?.id;
@@ -392,7 +405,7 @@ export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
       if (!post.assetUrl) throw new Error('This pin has no rendered asset to push.');
       let mediaId = mediaByAsset.get(post.assetUrl);
       if (!mediaId) {
-        mediaId = uploadMedia(post.assetUrl, `${post.localId.replace(/[^\w.-]+/g, '-')}.png`);
+        mediaId = uploadMedia(post.assetUrl, post.localId.replace(/[^\w.-]+/g, '-'));
         mediaByAsset.set(post.assetUrl, mediaId);
       }
 
