@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  fetchAccounts,
+  fetchStates,
   isConfigured,
   pushBatch,
   WORKSPACE_ID,
@@ -17,7 +19,13 @@ type Batch = {
   runId: string;
   pushedAt: string;
   counts: Record<PostState, number>;
-  posts: { localId: string; network: Network; state: PostState; error?: string }[];
+  posts: {
+    localId: string;
+    network: Network;
+    state: PostState;
+    error?: string;
+    remoteId?: string;
+  }[];
 };
 
 const batches = new Map<string, Batch>();
@@ -40,6 +48,26 @@ export function registerPushRoutes(app: FastifyInstance) {
     configured: isConfigured(),
     workspaceId: WORKSPACE_ID,
   }));
+
+  // The connected accounts, with Pinterest's boards riding along. Posting
+  // needs the account id, and the board picker needs the board list — both
+  // come from this one call, which is also what "refresh boards" re-runs.
+  app.get('/api/content360/accounts', async (_req, reply) => {
+    if (!isConfigured()) {
+      return reply.status(503).send({
+        ok: false,
+        error: 'not_configured',
+        message: 'No Content360 API key on the server yet — set CONTENT360_API_KEY.',
+      });
+    }
+    try {
+      return { ok: true, accounts: await fetchAccounts() };
+    } catch {
+      return reply
+        .status(502)
+        .send({ ok: false, error: 'unreachable', message: 'Could not reach Content360.' });
+    }
+  });
 
   app.get('/api/content360/batches', async () => ({
     ok: true,
@@ -84,11 +112,42 @@ export function registerPushRoutes(app: FastifyInstance) {
         network: posts.find((p) => p.localId === o.localId)?.network ?? 'pinterest',
         state: o.state,
         error: o.error,
+        remoteId: o.remoteId,
       })),
     };
     batches.set(record.id, record);
 
     return reply.send({ ok: true, batch: record });
+  });
+
+  // Re-read state from Content360 for everything we have handed over, so
+  // "pushed" becomes "published" (or "failed") without the seller leaving
+  // the app. Content360 owns publishing; this only mirrors what it decided.
+  app.post<{ Body: { batchId?: string } }>('/api/content360/sync', async (req, reply) => {
+    const batch = batches.get(req.body?.batchId ?? '');
+    if (!batch) {
+      return reply.status(404).send({ ok: false, message: 'That batch is no longer on the server.' });
+    }
+    const remoteIds = batch.posts.map((p) => p.remoteId).filter((id): id is string => Boolean(id));
+    if (remoteIds.length === 0) {
+      return reply.send({ ok: true, batch });
+    }
+    try {
+      const states = await fetchStates(remoteIds);
+      for (const post of batch.posts) {
+        const next = post.remoteId ? states[post.remoteId] : undefined;
+        if (next) {
+          post.state = next.state;
+          post.error = next.error;
+        }
+      }
+      batch.counts = tally(batch.posts);
+      return reply.send({ ok: true, batch });
+    } catch {
+      return reply
+        .status(502)
+        .send({ ok: false, error: 'unreachable', message: 'Could not reach Content360.' });
+    }
   });
 
   // Retry failed: re-push only the failed posts of a batch.
@@ -116,6 +175,7 @@ export function registerPushRoutes(app: FastifyInstance) {
         if (post) {
           post.state = outcome.state;
           post.error = outcome.error;
+          post.remoteId = outcome.remoteId;
         }
       }
       batch.counts = tally(batch.posts);
