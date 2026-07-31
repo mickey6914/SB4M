@@ -164,12 +164,27 @@ Because Pinterest will not publish a pin without a board, Review shows a notice
 when none is set. It does not block the push — Content360 accepts a boardless
 post and holds it — but a silent hold is worse than a sentence saying so.
 
-**Still open:** the workspace has *two* connected Instagram accounts
-(`dealsandstealsforreal` and `laplace_social`), and the push currently sends to
-whichever the API lists first. That is arbitrary. It needs the same treatment as
-the board — an account picker per network — or a stakeholder decision that one
-of the two is the Express Art Vibe account. Raising it here rather than letting
-first-wins ordering quietly decide.
+### Which account, when a network has two
+
+Settled 2026-07-31: the workspace holds two Instagram accounts, and
+**`dealsandstealsforreal` is the Express Art Vibe one** — not `laplace_social`.
+
+Rather than bake that id into the push, a shop now names its own handle per
+network (`handles` on the shop record), and Connections resolves it against the
+live account list to seed the picker. That keeps the fact where shop facts live,
+survives an account being reconnected under a new id, and extends to the second
+and third shop DECISIONS #1 sizes for.
+
+The picker itself only appears on a network with more than one connected
+account — one account is not a choice, so that row just says who receives the
+posts. A chosen account is sent with every post, and the server honours it
+exactly: if it is no longer connected the post **fails with a message naming the
+problem**, rather than falling back to another account. Publishing to the wrong
+Instagram is precisely the surprise the picker exists to remove, so a silent
+fallback would defeat it.
+
+Boards belong to a Pinterest account, so switching the Pinterest account clears
+the board rather than pointing a pin at a board the new account does not own.
 
 ### The plan's AI credits are not usable here
 

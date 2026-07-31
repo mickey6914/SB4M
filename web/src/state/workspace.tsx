@@ -19,7 +19,14 @@ export type WorkspaceRules = {
   // back when Content360 is unreachable.
   pinterestBoardId: string;
   pinterestBoardName: string;
+  // Which connected account receives each network's posts. The workspace
+  // holds two Instagram accounts, so leaving this to whichever the API
+  // happens to list first is not good enough. Labels are stored beside the
+  // ids for the same reason the board name is.
+  accountByNetwork: Partial<Record<NetworkKey, { id: number; label: string }>>;
 };
+
+export type NetworkKey = 'pinterest' | 'facebook' | 'instagram';
 
 export const DEFAULT_RULES: WorkspaceRules = {
   requireAd: true,
@@ -32,6 +39,7 @@ export const DEFAULT_RULES: WorkspaceRules = {
   defaultOverlay: 'EXPRESS ART VIBE',
   pinterestBoardId: '',
   pinterestBoardName: '',
+  accountByNetwork: {},
 };
 
 const STORAGE_KEY = 'eav.workspaceRules';

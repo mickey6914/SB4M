@@ -1245,12 +1245,12 @@ html, body, #root {
   font-weight: 600;
 }
 
-.conn-board {
+.conn-pick {
   margin-top: 12px;
   max-width: 320px;
 }
 
-.conn-board .field-label {
+.conn-pick .field-label {
   display: block;
   margin-bottom: 5px;
 }

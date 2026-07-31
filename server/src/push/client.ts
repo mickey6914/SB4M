@@ -48,6 +48,10 @@ export type OutgoingPost = {
   scheduledAt: string; // ISO 8601
   caption: string;
   assetUrl: string; // rendered asset at this network's crop; data: or http(s)
+  // Which connected account receives this post. A workspace can hold more
+  // than one account on a network, so the choice is the caller's; omitted,
+  // we take the first authorized one for the network.
+  accountId?: number;
   pinterest?: { title: string; link: string; board?: string };
   facebook?: { postType: 'post' | 'reel' | 'story' };
 };
@@ -358,12 +362,28 @@ export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
   const outcomes: PushOutcome[] = [];
 
   for (const post of posts) {
-    const account = byNetwork.get(post.network);
+    // A named account is honoured exactly, or the post fails. Quietly falling
+    // back to a different account would publish to the wrong Instagram — the
+    // precise surprise the picker exists to remove.
+    const account = post.accountId
+      ? (accounts.find((a) => a.id === post.accountId && a.network === post.network) ?? null)
+      : (byNetwork.get(post.network) ?? null);
+
     if (!account) {
       outcomes.push({
         localId: post.localId,
         state: 'failed',
-        error: `No connected ${post.network} account in Content360.`,
+        error: post.accountId
+          ? `The chosen ${post.network} account is no longer connected in Content360. Pick another in Connections.`
+          : `No connected ${post.network} account in Content360.`,
+      });
+      continue;
+    }
+    if (!account.authorized) {
+      outcomes.push({
+        localId: post.localId,
+        state: 'failed',
+        error: `The ${post.network} account "${account.username}" needs reconnecting in Content360.`,
       });
       continue;
     }

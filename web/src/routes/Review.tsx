@@ -380,6 +380,11 @@ function ReviewBody({ runId }: { runId: string }) {
         scheduledAt: new Date(Date.now() + (i + 1) * 86_400_000).toISOString(),
         caption: pin.desc,
         assetUrl: rendered?.[networkCrop[network]] ?? src ?? '',
+        // The account chosen in Connections. Sent explicitly so a workspace
+        // with two accounts on one network never depends on list order.
+        ...(rules.accountByNetwork[network]
+          ? { accountId: rules.accountByNetwork[network]!.id }
+          : {}),
         ...(network === 'pinterest'
           ? {
               pinterest: {

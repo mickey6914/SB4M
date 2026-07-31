@@ -121,3 +121,17 @@ test('a board is sent as null rather than omitted when none is picked yet', () =
     'account-132821': null,
   });
 });
+
+// A workspace can hold two accounts on one network, so the account a post
+// addresses is the caller's choice — and the board is keyed to it.
+test('the chosen account id is what the post addresses, and keys its board', () => {
+  const body = buildPostBody(
+    { ...post('a', 'x #ad'), pinterest: { title: 'Mug', link: 'https://s.example/m', board: 'b1' } },
+    155362,
+    '1'
+  );
+  assert.deepEqual(body.accounts, [155362]);
+  assert.deepEqual((body.versions[0].options.pinterest as { boards: unknown }).boards, {
+    'account-155362': 'b1',
+  });
+});

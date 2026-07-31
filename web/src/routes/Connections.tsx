@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { activeShop, WORKSPACE } from '../data/workspace';
-import { useWorkspace } from '../state/workspace';
+import { useWorkspace, type NetworkKey } from '../state/workspace';
 
 // Connections, README section 10: the accounts Content360 owns, and the
 // workspace rules that are set once here and applied to every run. The rules
@@ -40,6 +40,8 @@ const NETWORK_LABEL: Record<string, string> = {
   facebook: 'Facebook Page',
   instagram: 'Instagram Business',
 };
+
+const NETWORKS: NetworkKey[] = ['pinterest', 'facebook', 'instagram'];
 
 export default function Connections() {
   const { rules, update, reset } = useWorkspace();
@@ -89,13 +91,63 @@ export default function Connections() {
     })();
   }, []);
 
-  const pinterest = accounts?.find((a) => a.network === 'pinterest') ?? null;
-  const boards = pinterest?.boards ?? [];
+  // Seed each network's account the first time we see the real list, and
+  // re-seed if a stored choice has since been disconnected. The shop names
+  // its own handle, so a workspace holding two Instagram accounts resolves to
+  // the right one instead of whichever the API listed first. Deliberately
+  // keyed on `accounts` alone: this settles a default, it does not fight the
+  // seller's own choice on every render.
+  useEffect(() => {
+    if (!accounts) return;
+    const next = { ...rules.accountByNetwork };
+    let changed = false;
+    for (const network of NETWORKS) {
+      const live = accounts.filter((a) => a.network === network && a.authorized);
+      if (live.length === 0) continue;
+      const current = next[network];
+      if (current && live.some((a) => a.id === current.id)) continue;
+      const handle = activeShop.handles[network]?.toLowerCase();
+      const pick = live.find((a) => a.username.toLowerCase() === handle) ?? live[0];
+      next[network] = { id: pick.id, label: pick.username || pick.name };
+      changed = true;
+    }
+    if (changed) update({ accountByNetwork: next });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts]);
+
+  const chosenId = (network: NetworkKey) => rules.accountByNetwork[network]?.id;
+  const accountsFor = (network: NetworkKey) =>
+    (accounts ?? []).filter((a) => a.network === network);
+
+  // Boards belong to a Pinterest account, so they follow whichever account is
+  // chosen — not the first one in the list.
+  const pinterestAccount =
+    accountsFor('pinterest').find((a) => a.id === chosenId('pinterest')) ??
+    accountsFor('pinterest')[0] ??
+    null;
+  const boards = pinterestAccount?.boards ?? [];
 
   const pickBoard = (id: string) => {
     update({
       pinterestBoardId: id,
       pinterestBoardName: boards.find((b) => b.id === id)?.name ?? '',
+    });
+  };
+
+  const pickAccount = (network: NetworkKey, id: number) => {
+    const account = accountsFor(network).find((a) => a.id === id);
+    if (!account) return;
+    update({
+      accountByNetwork: {
+        ...rules.accountByNetwork,
+        [network]: { id, label: account.username || account.name },
+      },
+      // A board id belongs to one Pinterest account. Switching accounts
+      // invalidates it, so clear rather than push a pin at a board the new
+      // account does not own.
+      ...(network === 'pinterest' && !account.boards.some((b) => b.id === rules.pinterestBoardId)
+        ? { pinterestBoardId: '', pinterestBoardName: '' }
+        : {}),
     });
   };
 
@@ -135,57 +187,89 @@ export default function Connections() {
                   <span className="tag tag-neutral">In workspace</span>
                 </div>
               ))
-            : accounts.map((a) => (
-                <div key={a.id} className="conn-row">
-                  <div>
-                    <div className="conn-name">
-                      {NETWORK_LABEL[a.network ?? ''] ?? a.provider}
-                    </div>
-                    <div className="rail-note" style={{ marginTop: 2 }}>
-                      {a.name}
-                      {a.username && a.username !== a.name ? ` · @${a.username}` : ''}
-                    </div>
-                    {a.network && (
-                      <div className="rail-note" style={{ marginTop: 2 }}>
-                        Receives {CROPS[a.network]}
-                      </div>
-                    )}
+            : NETWORKS.map((network) => {
+                const live = accountsFor(network);
+                if (live.length === 0) return null;
+                const chosen = live.find((a) => a.id === chosenId(network)) ?? live[0];
+                return (
+                  <div key={network} className="conn-row">
+                    <div>
+                      <div className="conn-name">{NETWORK_LABEL[network]}</div>
 
-                    {/* The board picker. Pinterest needs a board to publish
-                        to, and it is the one destination Content360 cannot
-                        pick for us. One board per workspace, per DECISIONS #1
-                        — a second shop gets its own. */}
-                    {a.network === 'pinterest' && (
-                      <div className="conn-board">
-                        <label className="field-label" htmlFor="pinterest-board">
-                          Board for every pin
-                        </label>
-                        <select
-                          id="pinterest-board"
-                          className="input"
-                          value={rules.pinterestBoardId}
-                          onChange={(e) => pickBoard(e.target.value)}
-                        >
-                          <option value="">Choose a board…</option>
-                          {a.boards.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="rail-note" style={{ marginTop: 6 }}>
-                          {rules.pinterestBoardId
-                            ? `${a.boards.length} boards on this account.`
-                            : `${a.boards.length} boards on this account — pins cannot publish until one is chosen.`}
+                      {/* The account picker. Only a network with more than one
+                          connected account is a choice; the rest just say who
+                          receives the posts. */}
+                      {live.length > 1 ? (
+                        <div className="conn-pick">
+                          <label className="field-label" htmlFor={`account-${network}`}>
+                            Account that receives these posts
+                          </label>
+                          <select
+                            id={`account-${network}`}
+                            className="input"
+                            value={chosen.id}
+                            onChange={(e) => pickAccount(network, Number(e.target.value))}
+                          >
+                            {live.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.username || a.name}
+                                {a.authorized ? '' : ' (needs reconnecting)'}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="rail-note" style={{ marginTop: 6 }}>
+                            {live.length} accounts connected on this network.
+                          </div>
                         </div>
+                      ) : (
+                        <div className="rail-note" style={{ marginTop: 2 }}>
+                          {chosen.name}
+                          {chosen.username && chosen.username !== chosen.name
+                            ? ` · @${chosen.username}`
+                            : ''}
+                        </div>
+                      )}
+
+                      <div className="rail-note" style={{ marginTop: 2 }}>
+                        Receives {CROPS[network]}
                       </div>
-                    )}
+
+                      {/* The board picker. Pinterest needs a board to publish
+                          to, and it is the one destination Content360 cannot
+                          pick for us. One board per workspace, per DECISIONS #1
+                          — a second shop gets its own. */}
+                      {network === 'pinterest' && (
+                        <div className="conn-pick">
+                          <label className="field-label" htmlFor="pinterest-board">
+                            Board for every pin
+                          </label>
+                          <select
+                            id="pinterest-board"
+                            className="input"
+                            value={rules.pinterestBoardId}
+                            onChange={(e) => pickBoard(e.target.value)}
+                          >
+                            <option value="">Choose a board…</option>
+                            {boards.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="rail-note" style={{ marginTop: 6 }}>
+                            {rules.pinterestBoardId
+                              ? `${boards.length} boards on this account.`
+                              : `${boards.length} boards on this account — pins cannot publish until one is chosen.`}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <span className={chosen.authorized ? 'tag tag-neutral' : 'tag tag-accent'}>
+                      {chosen.authorized ? 'Connected' : 'Attention'}
+                    </span>
                   </div>
-                  <span className={a.authorized ? 'tag tag-neutral' : 'tag tag-accent'}>
-                    {a.authorized ? 'Connected' : 'Attention'}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
         </div>
 
         <div className="rail-note" style={{ marginTop: 14, maxWidth: '40em' }}>
