@@ -13,6 +13,12 @@ export type WorkspaceRules = {
   windowEnd: number;
   maxPerNetworkPerDay: number;
   defaultOverlay: string;
+  // Which Pinterest board every pin in this workspace lands on. Chosen in
+  // Connections from the boards Content360 reports; Pinterest needs one to
+  // publish. The name is kept alongside the id so the choice still reads
+  // back when Content360 is unreachable.
+  pinterestBoardId: string;
+  pinterestBoardName: string;
 };
 
 export const DEFAULT_RULES: WorkspaceRules = {
@@ -24,6 +30,8 @@ export const DEFAULT_RULES: WorkspaceRules = {
   windowEnd: 17,
   maxPerNetworkPerDay: 3,
   defaultOverlay: 'EXPRESS ART VIBE',
+  pinterestBoardId: '',
+  pinterestBoardName: '',
 };
 
 const STORAGE_KEY = 'eav.workspaceRules';

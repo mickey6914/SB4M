@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { usePush } from '../state/push';
 import { assetCount, CROPS, heroImages, SCENE_CATALOG, useRun, type Crop } from '../state/run';
 import {
@@ -8,6 +8,7 @@ import {
   useReview,
   type OverlayPos,
 } from '../state/review';
+import { useWorkspace } from '../state/workspace';
 
 // Review screen, README section 7: crop preview panel, pin grid with crop
 // tabs, and the inspector with live Claude copywriting. The four crops are
@@ -342,6 +343,7 @@ function ReviewBody({ runId }: { runId: string }) {
   const { run } = useRun();
   const { review, dispatch } = useReview();
   const { setBatch, setPushError } = usePush();
+  const { rules } = useWorkspace();
   const navigate = useNavigate();
   const [pushing, setPushing] = useState(false);
   const [inlinePushError, setInlinePushError] = useState('');
@@ -383,6 +385,9 @@ function ReviewBody({ runId }: { runId: string }) {
               pinterest: {
                 title: pin.title,
                 link: run.listing?.url ?? '',
+                // The board picked once in Connections. Content360 keys it
+                // per account, so this is the only destination we supply.
+                ...(rules.pinterestBoardId ? { board: rules.pinterestBoardId } : {}),
               },
             }
           : {}),
@@ -455,6 +460,18 @@ function ReviewBody({ runId }: { runId: string }) {
       </div>
       {inlinePushError && (
         <div className="push-error-bar">{inlinePushError}</div>
+      )}
+      {/* Every run reaches Pinterest, and Pinterest will not publish a pin
+          without a board. The push is still allowed — Content360 accepts the
+          post and holds it — but saying so here beats a silent failure. */}
+      {!rules.pinterestBoardId && (
+        <div className="push-warn-bar">
+          No Pinterest board chosen yet — pins will reach Content360 but cannot publish until one
+          is set.{' '}
+          <Link to="/connections" className="push-warn-link">
+            Choose a board
+          </Link>
+        </div>
       )}
       <div className="review-body">
         <div className="review-left">

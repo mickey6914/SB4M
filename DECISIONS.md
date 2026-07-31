@@ -36,7 +36,7 @@ increment where each lives:
 
 | Affordance | Decide during |
 | --- | --- |
-| Board pickers per network | Increment 6 (scheduling) — required for a real Pinterest push |
+| Board pickers per network | **Built.** One board per workspace, chosen in Connections — see §8 |
 | Pagination past six review cards | Increment 4 (review) |
 | "Surprise me" scenes | Increment 2 (wizard) — trivial, included |
 | "Show 50 more" scenes | Increment 2 — deferred, needs a scene catalog |
@@ -146,13 +146,30 @@ Two further constraints worth knowing:
   so the client escapes it. Newlines are left alone; Content360 turns them into
   the same blocks its own composer produces.
 
-### Board pickers are now free
+### Board pickers, built on that
 
 Pinterest's boards come back on the `accounts` record — 22 of them, including
 "Express Art Vibe". There is no separate boards route, so the increment-6 open
-question "Refresh boards" is answered: it re-reads `accounts`. The plumbing is
-wired end to end (a board id sent per post lands on the right account); only the
-picker UI is still to build.
+question "Refresh boards" is answered: it re-reads `accounts`, and that is
+exactly what the button now does.
+
+The picker sits in the Pinterest row on Connections and sets **one board for the
+whole workspace**, not one per run. Pinterest is the only network whose
+destination Content360 cannot infer, and a seller running one shop posts to one
+board; a second shop (DECISIONS #1) gets its own. The choice persists with the
+other workspace rules, and the board name is stored beside the id so the setting
+still reads back when Content360 is unreachable.
+
+Because Pinterest will not publish a pin without a board, Review shows a notice
+when none is set. It does not block the push — Content360 accepts a boardless
+post and holds it — but a silent hold is worse than a sentence saying so.
+
+**Still open:** the workspace has *two* connected Instagram accounts
+(`dealsandstealsforreal` and `laplace_social`), and the push currently sends to
+whichever the API lists first. That is arbitrary. It needs the same treatment as
+the board — an account picker per network — or a stakeholder decision that one
+of the two is the Express Art Vibe account. Raising it here rather than letting
+first-wins ordering quietly decide.
 
 ### The plan's AI credits are not usable here
 

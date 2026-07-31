@@ -9,20 +9,67 @@ import { useWorkspace } from '../state/workspace';
 type Status = { configured: boolean; workspaceId: string };
 type SceneStatus = { active: string; google: boolean; openai: boolean };
 
-const ACCOUNTS = [
-  {
-    name: 'Pinterest',
-    detail: 'Boards: Gift Ideas · Home Decor · Clip Art · Amazon Finds · Printables',
-    crop: '2:3 pins',
-  },
-  { name: 'Facebook Page', detail: 'Deals and Steals For Real', crop: '1:1 posts' },
-  { name: 'Instagram Business', detail: 'Express Art Vibe', crop: '4:5 feed · 9:16 story' },
+type Board = { id: string; name: string };
+type Account = {
+  id: number;
+  network: 'pinterest' | 'facebook' | 'instagram' | null;
+  provider: string;
+  name: string;
+  username: string;
+  authorized: boolean;
+  boards: Board[];
+};
+
+// Which crop each network receives, from the fan-out rules in DECISIONS.md #3.
+const CROPS: Record<string, string> = {
+  pinterest: '2:3 pins',
+  facebook: '1:1 posts',
+  instagram: '4:5 feed · 9:16 story',
+};
+
+// Shown until Content360 answers — the accounts named in the workspace, not
+// live status. Replaced wholesale once the real list arrives.
+const PLACEHOLDER_ACCOUNTS = [
+  { name: 'Pinterest', detail: 'Boards load once the API key is set', crop: CROPS.pinterest },
+  { name: 'Facebook Page', detail: 'Deals and Steals For Real', crop: CROPS.facebook },
+  { name: 'Instagram Business', detail: 'Express Art Vibe', crop: CROPS.instagram },
 ];
+
+const NETWORK_LABEL: Record<string, string> = {
+  pinterest: 'Pinterest',
+  facebook: 'Facebook Page',
+  instagram: 'Instagram Business',
+};
 
 export default function Connections() {
   const { rules, update, reset } = useWorkspace();
   const [status, setStatus] = useState<Status | null>(null);
   const [scenes, setScenes] = useState<SceneStatus | null>(null);
+  const [accounts, setAccounts] = useState<Account[] | null>(null);
+  const [accountsError, setAccountsError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Boards ride along on the accounts record — there is no separate boards
+  // endpoint — so loading accounts and refreshing boards are the same call.
+  const loadAccounts = async () => {
+    setRefreshing(true);
+    setAccountsError('');
+    try {
+      const res = await fetch('/api/content360/accounts');
+      const json = await res.json();
+      if (json.ok) {
+        setAccounts(json.accounts);
+      } else {
+        setAccounts(null);
+        setAccountsError(json.message ?? 'Content360 did not return the account list.');
+      }
+    } catch {
+      setAccounts(null);
+      setAccountsError('Could not reach the server — showing the workspace list instead.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -33,11 +80,24 @@ export default function Connections() {
         ]);
         if (s.ok) setStatus({ configured: s.configured, workspaceId: s.workspaceId });
         if (sc.ok) setScenes({ active: sc.active, google: sc.google, openai: sc.openai });
+        // Only ask for accounts once we know a key exists; otherwise the
+        // 503 is noise the "No key yet" tag already communicates.
+        if (s.ok && s.configured) await loadAccounts();
       } catch {
         // Leave the panels showing "checking…" rather than inventing a state.
       }
     })();
   }, []);
+
+  const pinterest = accounts?.find((a) => a.network === 'pinterest') ?? null;
+  const boards = pinterest?.boards ?? [];
+
+  const pickBoard = (id: string) => {
+    update({
+      pinterestBoardId: id,
+      pinterestBoardName: boards.find((b) => b.id === id)?.name ?? '',
+    });
+  };
 
   const providerLabel =
     scenes?.active === 'google'
@@ -56,32 +116,94 @@ export default function Connections() {
         </p>
 
         <div className="conn-list">
-          {ACCOUNTS.map((a, i) => (
-            <div key={a.name} className="conn-row">
-              <div>
-                <div className="conn-name">{a.name}</div>
-                <div className="rail-note" style={{ marginTop: 2 }}>
-                  {a.detail}
+          {accounts === null
+            ? PLACEHOLDER_ACCOUNTS.map((a) => (
+                <div key={a.name} className="conn-row">
+                  <div>
+                    <div className="conn-name">{a.name}</div>
+                    <div className="rail-note" style={{ marginTop: 2 }}>
+                      {/* A board chosen earlier still reads back here, which
+                          is why the name is stored next to the id. */}
+                      {a.name === 'Pinterest' && rules.pinterestBoardName
+                        ? `Board: ${rules.pinterestBoardName}`
+                        : a.detail}
+                    </div>
+                    <div className="rail-note" style={{ marginTop: 2 }}>
+                      Receives {a.crop}
+                    </div>
+                  </div>
+                  <span className="tag tag-neutral">In workspace</span>
                 </div>
-                <div className="rail-note" style={{ marginTop: 2 }}>
-                  Receives {a.crop}
+              ))
+            : accounts.map((a) => (
+                <div key={a.id} className="conn-row">
+                  <div>
+                    <div className="conn-name">
+                      {NETWORK_LABEL[a.network ?? ''] ?? a.provider}
+                    </div>
+                    <div className="rail-note" style={{ marginTop: 2 }}>
+                      {a.name}
+                      {a.username && a.username !== a.name ? ` · @${a.username}` : ''}
+                    </div>
+                    {a.network && (
+                      <div className="rail-note" style={{ marginTop: 2 }}>
+                        Receives {CROPS[a.network]}
+                      </div>
+                    )}
+
+                    {/* The board picker. Pinterest needs a board to publish
+                        to, and it is the one destination Content360 cannot
+                        pick for us. One board per workspace, per DECISIONS #1
+                        — a second shop gets its own. */}
+                    {a.network === 'pinterest' && (
+                      <div className="conn-board">
+                        <label className="field-label" htmlFor="pinterest-board">
+                          Board for every pin
+                        </label>
+                        <select
+                          id="pinterest-board"
+                          className="input"
+                          value={rules.pinterestBoardId}
+                          onChange={(e) => pickBoard(e.target.value)}
+                        >
+                          <option value="">Choose a board…</option>
+                          {a.boards.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="rail-note" style={{ marginTop: 6 }}>
+                          {rules.pinterestBoardId
+                            ? `${a.boards.length} boards on this account.`
+                            : `${a.boards.length} boards on this account — pins cannot publish until one is chosen.`}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <span className={a.authorized ? 'tag tag-neutral' : 'tag tag-accent'}>
+                    {a.authorized ? 'Connected' : 'Attention'}
+                  </span>
                 </div>
-              </div>
-              <span className={i === 2 ? 'tag tag-accent' : 'tag tag-neutral'}>
-                {i === 2 ? 'Attention' : 'Connected'}
-              </span>
-            </div>
-          ))}
+              ))}
         </div>
 
         <div className="rail-note" style={{ marginTop: 14, maxWidth: '40em' }}>
-          Account state is reported by Content360. Until the API key is set below, this list shows
-          the accounts named in your workspace rather than live status.
+          {accountsError ||
+            (accounts === null
+              ? 'Account state is reported by Content360. Until the API key is set below, this list shows the accounts named in your workspace rather than live status.'
+              : 'Live from Content360. Boards come back with the accounts, so refreshing the list refreshes the boards.')}
         </div>
 
         <div className="dash-actions">
-          <button className="btn btn-secondary" type="button" disabled title="Needs the Content360 API key">
-            Refresh boards
+          <button
+            className="btn btn-secondary"
+            type="button"
+            disabled={!status?.configured || refreshing}
+            title={status?.configured ? undefined : 'Needs the Content360 API key'}
+            onClick={loadAccounts}
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh boards'}
           </button>
           <a
             className="btn btn-ghost"

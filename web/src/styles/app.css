@@ -1145,6 +1145,21 @@ html, body, #root {
   border-bottom: 2px solid var(--color-divider);
 }
 
+/* A missing board is a "this will not finish" notice, not a failure — it
+   sits on the neutral ground so it reads quieter than the error bar. */
+.push-warn-bar {
+  padding: 12px 32px;
+  background: var(--color-neutral-100);
+  color: var(--color-text);
+  font-size: 13px;
+  border-bottom: 2px solid var(--color-divider);
+}
+
+.push-warn-link {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
 /* — dashboard sections — */
 
 .dash-section {
@@ -1228,6 +1243,16 @@ html, body, #root {
 .conn-name {
   font-size: 15px;
   font-weight: 600;
+}
+
+.conn-board {
+  margin-top: 12px;
+  max-width: 320px;
+}
+
+.conn-board .field-label {
+  display: block;
+  margin-bottom: 5px;
 }
 
 .conn-services {
