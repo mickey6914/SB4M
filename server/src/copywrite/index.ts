@@ -9,6 +9,15 @@ import type { FastifyInstance } from 'fastify';
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-opus-5';
 
+// Claude Code's own cloud environments warn that ANTHROPIC_API_KEY "won't be
+// used to authenticate requests" — that is about how Claude Code itself signs
+// in, not about us. But rather than depend on whether the variable survives
+// into the container, accept a second name that nothing else lays claim to.
+// Either one works; PIN_POST_ANTHROPIC_KEY wins if both are set.
+function apiKey(): string | undefined {
+  return process.env.PIN_POST_ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY || undefined;
+}
+
 const FAILURE = 'Could not write that one — try again.';
 
 export type PinCopy = {
@@ -62,14 +71,16 @@ export function registerCopywriteRoutes(app: FastifyInstance) {
     if (!product) {
       return reply.status(422).send({ ok: false, message: 'Add a product description first — it is what the copy is written from.' });
     }
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const key = apiKey();
+    if (!key) {
       return reply.status(503).send({
         ok: false,
-        message: 'The server has no Anthropic API key yet — set ANTHROPIC_API_KEY to enable AI copywriting.',
+        message:
+          'The server has no Anthropic API key yet — set ANTHROPIC_API_KEY (or PIN_POST_ANTHROPIC_KEY) to enable AI copywriting.',
       });
     }
 
-    const client = new Anthropic();
+    const client = new Anthropic({ apiKey: key });
     const user = [
       `Product: ${product}`,
       scenes.length ? `Inspiration scenes: ${scenes.join(', ')}` : null,
