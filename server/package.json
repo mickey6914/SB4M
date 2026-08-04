@@ -6,7 +6,8 @@
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
     "build": "tsc -b",
     "start": "node --env-file-if-exists=.env dist/index.js",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "check:scenes": "tsx --env-file-if-exists=.env scripts/check-scene-provider.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
