@@ -24,6 +24,14 @@ const { configuredProvider, generateBackground, providerStatus } = await import(
 const status = providerStatus();
 const provider = configuredProvider();
 
+// Say this before the provider line rather than after the failure: a typo in
+// the setting reads exactly like a working configuration otherwise.
+if (status.settingError) {
+  console.error(status.settingError);
+  console.error('Backgrounds are refused until it names a real provider.');
+  process.exit(1);
+}
+
 console.log(`provider : ${provider}`);
 console.log(`model    : ${status.models[provider] ?? '(none — built in)'}`);
 console.log(

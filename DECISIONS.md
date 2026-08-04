@@ -70,7 +70,7 @@ switching is an env change rather than a rebuild:
 
 | Setting | Model (override with `*_IMAGE_MODEL`) | Key |
 | --- | --- | --- |
-| **abacus** | **flux-2-pro, on ChatLLM credits — chosen 2026-08-04, see below** | ABACUS_API_KEY |
+| **abacus** | **nano_banana_lite, on ChatLLM credits — chosen 2026-08-04, see below** | ABACUS_API_KEY |
 | google | gemini-3.1-flash-image (~$0.04/image) | GEMINI_API_KEY |
 | openai | gpt-image-1-mini (~$0.005/image) | OPENAI_API_KEY |
 | procedural | built-in gradient backdrop, no cost | none |
@@ -324,10 +324,11 @@ Abacus wins are not about price:
 
 1. **The seller already has the account and the key**, and RouteLLM draws on
    the ChatLLM subscription's credits, with no markup on proprietary models.
-2. **One key fronts the whole catalogue** — flux, imagen, ideogram, recraft,
-   seedream, dall-e, midjourney and **nano-banana-pro**. Google's best image
-   model is reachable through Abacus *without* a Google Cloud billing
-   relationship, which is the single most useful consequence of this choice.
+2. **One key fronts the whole catalogue** — 150 models, of which 37 generate
+   images: flux, ideogram, recraft, seedream, dalle, midjourney and
+   **nano_banana_pro**. Google's best image model is reachable through Abacus
+   *without* a Google Cloud billing relationship, which is the single most
+   useful consequence of this choice.
 3. **Changing model is a config edit**, which is the same portability argument
    that made OPENAI_BASE_URL worth building, against a much larger shelf.
 
@@ -351,18 +352,34 @@ Three details worth keeping:
   §7 deliberately left unbuilt for URL-returning vendors — now built, and
   routed through `shared/load-image.ts` so it inherits the SSRF guard rather
   than fetching whatever address a reply names.
-- **`rewrite_prompt` is disabled.** Abacus enables prompt rewriting by
-  default, and it is precisely wrong here: the prompt's entire job is to
-  demand an EMPTY frame, and a rewriter that helpfully adds a product back in
-  would break the one guarantee this pipeline makes.
+- **`image_config` carries only `aspect_ratio` and `num_images`.** It briefly
+  also carried `rewrite_prompt: false`, meaning to stop a rewriter from adding
+  a product to a frame whose whole job is to be empty. No such control exists:
+  every spelling of it — `rewrite_prompt`, `enhance_prompt`, `prompt_rewrite`,
+  `rewritePrompt` — is rejected, and an unknown key does not get ignored, it
+  400s the entire request. The documented fields are output type, count,
+  aspect ratio, quality and resolution. The empty frame therefore rests on the
+  prompt and on review, exactly as it does with the other providers.
 
-### Unverified against the live API
+### Verified against the live API, 2026-08-04
 
-The request and response shapes were read off a working third-party client,
-not off Abacus's own reference, which does not publish the payload. Nothing
-here has touched the real API — the subscription is lapsed at time of writing.
-So this is in exactly the state §7's Google path is in: unit tested, unproven.
+The shapes above were read off a working third-party client rather than
+Abacus's own reference, and this section previously recorded them as unproven
+because the subscription was lapsed. It has since been probed with a live key,
+and the record is now measured:
 
-The difference, and the reason it is worth having built: with a renewed
-subscription this **can** be proven in one call, where Google's cannot be
-proven at all until a billing relationship exists.
+- The provider works end to end. `npm run check:scenes` returns a real 1024×1024
+  backdrop in ~5s, and `/api/scenes/mockup` composites onto it.
+- **Two things in the built version were wrong, and both 400'd every request.**
+  `rewrite_prompt` above, and the default model: ids on this API are
+  underscored, so `flux-2-pro` does not resolve — the real one is `flux2_pro`.
+  There is no `imagen` here either. `GET /v1/models` is the authority.
+- The default is now `nano_banana_lite`: 3,362 compute points against 6,725 for
+  `gemini-3.1-flash-image`, for a backdrop that was no worse on the scenes tried.
+- The reply's `data:` prefix is not honest — JPEG bytes arrive labelled
+  `image/png` — so bytes are identified by content, never by the label.
+
+The wider probe of what else the key reaches — the Anthropic-compatible text
+gateway, the credit units, the absent balance endpoint — is its own note; the
+short version is that copywriting *could* move here at the same per-token price,
+and was deliberately left on Anthropic.

@@ -11,6 +11,12 @@ import { loadImageSource } from '../shared/load-image.js';
 
 export type ProviderName = 'abacus' | 'google' | 'openai' | 'procedural';
 
+export const PROVIDER_NAMES: ProviderName[] = ['abacus', 'google', 'openai', 'procedural'];
+
+export function isProviderName(raw: string): raw is ProviderName {
+  return (PROVIDER_NAMES as string[]).includes(raw);
+}
+
 export type SceneRequest = {
   scene: string; // e.g. "Cozy home setting"
   styleDirection?: string; // the run's free-text steer
@@ -23,8 +29,8 @@ export type SceneResult =
   | { ok: false; provider: ProviderName; message: string };
 
 export function configuredProvider(): ProviderName {
-  const raw = (process.env.SCENE_PROVIDER ?? '').toLowerCase();
-  if (raw === 'abacus' || raw === 'google' || raw === 'openai' || raw === 'procedural') return raw;
+  const raw = (process.env.SCENE_PROVIDER ?? '').trim().toLowerCase();
+  if (isProviderName(raw)) return raw;
   // Fall back to whichever key exists; procedural keeps the app usable with
   // no keys at all. Abacus leads because it is the one a key alone is enough
   // for — Google additionally needs billing enabled before it can generate.
@@ -41,11 +47,16 @@ export function configuredProvider(): ProviderName {
 export const GOOGLE_DEFAULT_MODEL = 'gemini-3.1-flash-image';
 export const OPENAI_DEFAULT_MODEL = 'gpt-image-1-mini';
 
-// Abacus fronts many image models behind one key — flux-kontext, flux-2-pro,
-// dall-e, ideogram, recraft, imagen, seedream, nano-banana-pro, midjourney.
-// The default is a fast photographic one, because a background is the easy
-// case; ABACUS_IMAGE_MODEL reaches the rest without a code change.
-export const ABACUS_DEFAULT_MODEL = 'flux-2-pro';
+// Abacus fronts many image models behind one key — flux_kontext, flux2_pro,
+// dalle, ideogram, recraft, seedream, nano_banana_pro, midjourney. The default
+// is a fast photographic one, because a background is the easy case;
+// ABACUS_IMAGE_MODEL reaches the rest without a code change.
+//
+// Mind the spelling: these ids are underscored, not hyphenated, and the
+// hyphenated guesses are rejected with a 400 rather than resolved. There is no
+// "imagen" here either — Imagen is reachable through the Google box, not this
+// one. `GET /v1/models` is the authority on what exists.
+export const ABACUS_DEFAULT_MODEL = 'nano_banana_lite';
 export const ABACUS_DEFAULT_BASE_URL = 'https://routellm.abacus.ai/v1';
 
 export function abacusModel(): string {
@@ -65,9 +76,22 @@ export function openAiModel(): string {
   return process.env.OPENAI_IMAGE_MODEL || OPENAI_DEFAULT_MODEL;
 }
 
+// A misspelt SCENE_PROVIDER is indistinguishable from an unset one once it
+// falls through to key detection: something still renders, just not what was
+// asked for. That is not hypothetical — SCENE_PROVIDER=abacus sat in the
+// deployment environment before there was an Abacus provider, quietly drawing
+// through Google, and it took a failing test to notice. An unrecognised name
+// is an error the caller reports, not a silent substitution.
+export function providerSettingError(): string | null {
+  const raw = (process.env.SCENE_PROVIDER ?? '').trim();
+  if (!raw || isProviderName(raw.toLowerCase())) return null;
+  return `SCENE_PROVIDER is set to "${raw}", which is not one of: ${PROVIDER_NAMES.join(', ')}.`;
+}
+
 export function providerStatus() {
   return {
     active: configuredProvider(),
+    settingError: providerSettingError(),
     abacus: Boolean(process.env.ABACUS_API_KEY),
     google: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
     openai: Boolean(process.env.OPENAI_API_KEY),
@@ -102,7 +126,7 @@ export function backgroundPrompt(req: SceneRequest): string {
 // /images/generations. They go to /chat/completions with `modalities` and
 // `image_config`, and come back inside the chat reply — so OPENAI_BASE_URL
 // cannot reach it and this needs its own shape. One key fronts flux, imagen,
-// nano-banana-pro, midjourney and the rest, so the model is a setting.
+// nano_banana_pro, midjourney and the rest, so the model is a setting.
 
 // Reduce the requested frame to the ratio strings these models accept.
 export function aspectRatioFor(req: SceneRequest): string {
@@ -125,14 +149,18 @@ export function abacusRequestBody(model: string, req: SceneRequest): unknown {
     model,
     modalities: ['image', 'text'],
     messages: [{ role: 'user', content: backgroundPrompt(req) }],
+    // Only what the API actually accepts. `rewrite_prompt: false` used to sit
+    // here, meaning to stop a rewriter from helpfully adding a product to a
+    // frame whose whole job is to be empty (§7). No such control exists —
+    // every spelling of it is rejected with "Invalid configuration found for
+    // generation image.", which 400s the entire request, and the documented
+    // fields are output type, count, aspect ratio, quality and resolution.
+    // So the empty frame rests on the prompt and on review, as it does with
+    // the other providers. Verified against the live API: these two are
+    // accepted, that third one is not.
     image_config: {
       aspect_ratio: aspectRatioFor(req),
       num_images: 1,
-      // Prompt rewriting is on by default at Abacus, and it is exactly wrong
-      // here: the prompt's whole job is to demand an EMPTY frame, and a
-      // rewriter that helpfully adds a product breaks the one guarantee this
-      // pipeline makes (§7 — the seller's photo is the only product in shot).
-      rewrite_prompt: false,
     },
   };
 }
@@ -380,6 +408,9 @@ async function generateProcedural(req: SceneRequest): Promise<SceneResult> {
 
 export async function generateBackground(req: SceneRequest): Promise<SceneResult> {
   const provider = configuredProvider();
+  const settingError = providerSettingError();
+  // Refusing beats rendering through a provider nobody chose.
+  if (settingError) return { ok: false, provider, message: settingError };
   if (provider === 'abacus') return generateAbacus(req);
   if (provider === 'google') return generateGoogle(req);
   if (provider === 'openai') return generateOpenAI(req);

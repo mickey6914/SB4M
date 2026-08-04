@@ -7,9 +7,11 @@ import {
   ABACUS_DEFAULT_MODEL,
   GOOGLE_DEFAULT_MODEL,
   OPENAI_DEFAULT_BASE_URL,
+  PROVIDER_NAMES,
   backgroundPrompt,
   configuredProvider,
   generateBackground,
+  providerSettingError,
   googleEndpoint,
   googleRequestBody,
   googleRoute,
@@ -96,6 +98,47 @@ test('provider setting selects the provider without touching code', () => {
     assert.equal(configuredProvider(), 'google');
     process.env.SCENE_PROVIDER = 'openai';
     assert.equal(configuredProvider(), 'openai');
+    process.env.SCENE_PROVIDER = 'abacus';
+    assert.equal(configuredProvider(), 'abacus');
+  } finally {
+    if (saved === undefined) delete process.env.SCENE_PROVIDER;
+    else process.env.SCENE_PROVIDER = saved;
+  }
+});
+
+// — An unrecognised provider name —
+// The failure this pair exists to stop is a silent one: SCENE_PROVIDER=abacus
+// pointed at Google for as long as there was no Abacus provider, because an
+// unknown value fell through to key detection instead of being rejected.
+
+test('a name outside the list is reported, and a real one is not', () => {
+  const saved = process.env.SCENE_PROVIDER;
+  try {
+    process.env.SCENE_PROVIDER = 'abbacus';
+    const err = providerSettingError();
+    assert.ok(err, 'a misspelt provider name must produce an error');
+    assert.match(err, /abbacus/); // says what was set
+    assert.match(err, /abacus/); // and names the ones that exist
+    for (const name of PROVIDER_NAMES) {
+      process.env.SCENE_PROVIDER = name;
+      assert.equal(providerSettingError(), null, `${name} is a real provider`);
+    }
+    // Unset means auto-detect, which is a choice rather than a mistake.
+    delete process.env.SCENE_PROVIDER;
+    assert.equal(providerSettingError(), null);
+  } finally {
+    if (saved === undefined) delete process.env.SCENE_PROVIDER;
+    else process.env.SCENE_PROVIDER = saved;
+  }
+});
+
+test('a background is refused outright while the setting is wrong', async () => {
+  const saved = process.env.SCENE_PROVIDER;
+  process.env.SCENE_PROVIDER = 'nano-banana';
+  try {
+    const result = await generateBackground({ scene: 'Linen table', width: 256, height: 256 });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /nano-banana/);
   } finally {
     if (saved === undefined) delete process.env.SCENE_PROVIDER;
     else process.env.SCENE_PROVIDER = saved;
@@ -250,19 +293,21 @@ test('the OpenAI base url is a setting, so another vendor needs no code change',
 // — Abacus (RouteLLM) —
 // OpenAI-compatible for chat, but images ride on /chat/completions with
 // modalities + image_config, so OPENAI_BASE_URL cannot reach it. Shapes here
-// mirror a working third-party client; they are unverified against the live
-// API until a key with an active subscription exists.
+// mirror a working third-party client. Verified against the live API on
+// 2026-08-04 with a subscribed key: the request shape below is accepted and
+// returns a real background.
 
-test('the request asks for an image and refuses prompt rewriting', () => {
-  const body = abacusRequestBody('flux-2-pro', SQUARE) as any;
-  assert.equal(body.model, 'flux-2-pro');
+test('the request asks for an image, and carries only settings the API accepts', () => {
+  const body = abacusRequestBody('flux2_pro', SQUARE) as any;
+  assert.equal(body.model, 'flux2_pro');
   assert.deepEqual(body.modalities, ['image', 'text']);
   assert.equal(body.messages[0].content, backgroundPrompt(SQUARE));
   assert.equal(body.image_config.num_images, 1);
   assert.equal(body.image_config.aspect_ratio, '1:1');
-  // The prompt's whole job is to demand an empty frame. A rewriter that adds
-  // a product back in would break the one guarantee the pipeline makes.
-  assert.equal(body.image_config.rewrite_prompt, false);
+  // An unknown key in image_config does not get ignored — it 400s the whole
+  // request, which is how rewrite_prompt made every background fail. Keep the
+  // block to the fields the API documents.
+  assert.deepEqual(Object.keys(body.image_config).sort(), ['aspect_ratio', 'num_images']);
 });
 
 test('the requested frame becomes the nearest ratio the models accept', () => {
@@ -326,7 +371,7 @@ test('an Abacus key alone selects the provider, without SCENE_PROVIDER', () => {
     process.env.ABACUS_API_KEY = 'test-key';
     // Wins over a GEMINI_API_KEY, which needs billing before it can generate.
     assert.equal(configuredProvider(), 'abacus');
-    assert.equal(ABACUS_DEFAULT_MODEL, 'flux-2-pro');
+    assert.equal(ABACUS_DEFAULT_MODEL, 'nano_banana_lite');
   } finally {
     if (saved.p === undefined) delete process.env.SCENE_PROVIDER;
     else process.env.SCENE_PROVIDER = saved.p;

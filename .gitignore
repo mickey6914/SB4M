@@ -4,4 +4,7 @@ dist/
 .env.*
 !.env.example
 *.log
-scripts/out/
+# Anchored patterns containing a slash match from this file's directory, so
+# the bare form missed server/scripts/out/ — and let one generated backdrop
+# into the history.
+**/scripts/out/

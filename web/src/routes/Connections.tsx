@@ -7,7 +7,13 @@ import { useWorkspace, type NetworkKey } from '../state/workspace';
 // are live — the scheduler and the push read them, they are not decoration.
 
 type Status = { configured: boolean; workspaceId: string };
-type SceneStatus = { active: string; google: boolean; openai: boolean };
+type SceneStatus = {
+  active: string;
+  abacus: boolean;
+  google: boolean;
+  openai: boolean;
+  settingError: string | null;
+};
 
 type Board = { id: string; name: string };
 type Account = {
@@ -81,7 +87,14 @@ export default function Connections() {
           fetch('/api/scenes/status').then((r) => r.json()),
         ]);
         if (s.ok) setStatus({ configured: s.configured, workspaceId: s.workspaceId });
-        if (sc.ok) setScenes({ active: sc.active, google: sc.google, openai: sc.openai });
+        if (sc.ok)
+          setScenes({
+            active: sc.active,
+            abacus: sc.abacus,
+            google: sc.google,
+            openai: sc.openai,
+            settingError: sc.settingError ?? null,
+          });
         // Only ask for accounts once we know a key exists; otherwise the
         // 503 is noise the "No key yet" tag already communicates.
         if (s.ok && s.configured) await loadAccounts();
@@ -151,12 +164,15 @@ export default function Connections() {
     });
   };
 
-  const providerLabel =
-    scenes?.active === 'google'
-      ? 'Google (Imagen / Gemini)'
-      : scenes?.active === 'openai'
-        ? 'OpenAI (GPT Image)'
-        : 'Built-in backdrops (no key yet)';
+  const providerLabel = scenes?.settingError
+    ? 'Setting not recognised'
+    : scenes?.active === 'abacus'
+      ? 'Abacus (RouteLLM)'
+      : scenes?.active === 'google'
+        ? 'Google (Imagen / Gemini)'
+        : scenes?.active === 'openai'
+          ? 'OpenAI (GPT Image)'
+          : 'Built-in backdrops (no key yet)';
 
   return (
     <section className="conn-layout">
@@ -309,10 +325,22 @@ export default function Connections() {
           </div>
           <div className="conn-service-row">
             <span>Scene backgrounds</span>
-            <span className={scenes && scenes.active !== 'procedural' ? 'tag tag-neutral' : 'tag tag-accent'}>
+            <span
+              className={
+                scenes && !scenes.settingError && scenes.active !== 'procedural'
+                  ? 'tag tag-neutral'
+                  : 'tag tag-accent'
+              }
+            >
               {scenes === null ? 'Checking…' : providerLabel}
             </span>
           </div>
+          {scenes?.settingError ? (
+            <div className="rail-note" style={{ marginTop: 10 }}>
+              {scenes.settingError} Backgrounds are paused until it is corrected — a name the app
+              does not know is not quietly swapped for another provider.
+            </div>
+          ) : null}
           <div className="rail-note" style={{ marginTop: 10 }}>
             Keys live in <code className="mono">server/.env</code> — see{' '}
             <code className="mono">.env.example</code> for what each one unlocks.
