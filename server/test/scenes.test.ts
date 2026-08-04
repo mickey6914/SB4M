@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import { composeMockup, cutout } from '../src/scenes/compose.js';
 import {
+  ABACUS_DEFAULT_BASE_URL,
+  ABACUS_DEFAULT_MODEL,
   GOOGLE_DEFAULT_MODEL,
   OPENAI_DEFAULT_BASE_URL,
   backgroundPrompt,
@@ -11,6 +13,10 @@ import {
   googleEndpoint,
   googleRequestBody,
   googleRoute,
+  abacusBaseUrl,
+  abacusRequestBody,
+  aspectRatioFor,
+  imageFromAbacusResponse,
   imageFromGoogleResponse,
   openAiBaseUrl,
 } from '../src/scenes/providers.js';
@@ -238,5 +244,93 @@ test('the OpenAI base url is a setting, so another vendor needs no code change',
   } finally {
     if (saved === undefined) delete process.env.OPENAI_BASE_URL;
     else process.env.OPENAI_BASE_URL = saved;
+  }
+});
+
+// — Abacus (RouteLLM) —
+// OpenAI-compatible for chat, but images ride on /chat/completions with
+// modalities + image_config, so OPENAI_BASE_URL cannot reach it. Shapes here
+// mirror a working third-party client; they are unverified against the live
+// API until a key with an active subscription exists.
+
+test('the request asks for an image and refuses prompt rewriting', () => {
+  const body = abacusRequestBody('flux-2-pro', SQUARE) as any;
+  assert.equal(body.model, 'flux-2-pro');
+  assert.deepEqual(body.modalities, ['image', 'text']);
+  assert.equal(body.messages[0].content, backgroundPrompt(SQUARE));
+  assert.equal(body.image_config.num_images, 1);
+  assert.equal(body.image_config.aspect_ratio, '1:1');
+  // The prompt's whole job is to demand an empty frame. A rewriter that adds
+  // a product back in would break the one guarantee the pipeline makes.
+  assert.equal(body.image_config.rewrite_prompt, false);
+});
+
+test('the requested frame becomes the nearest ratio the models accept', () => {
+  assert.equal(aspectRatioFor({ scene: 's', width: 1024, height: 1024 }), '1:1');
+  assert.equal(aspectRatioFor({ scene: 's', width: 1000, height: 1500 }), '2:3');
+  assert.equal(aspectRatioFor({ scene: 's', width: 1080, height: 1350 }), '4:5');
+  assert.equal(aspectRatioFor({ scene: 's', width: 1080, height: 1920 }), '9:16');
+});
+
+test('the image is found in all three places a reply can carry it', () => {
+  const url = 'https://cdn.abacus.ai/generated/abc.png';
+  assert.equal(
+    imageFromAbacusResponse({ choices: [{ message: { images: [{ image_url: { url } }] } }] }),
+    url
+  );
+
+  const dataUri = 'data:image/png;base64,AAAB';
+  assert.equal(
+    imageFromAbacusResponse({ choices: [{ message: { content: `Here you go ${dataUri}` } }] }),
+    dataUri
+  );
+
+  assert.equal(
+    imageFromAbacusResponse({
+      choices: [{ message: { content: [{ inline_data: { mime_type: 'image/jpeg', data: 'AAAB' } }] } }],
+    }),
+    'data:image/jpeg;base64,AAAB'
+  );
+});
+
+test('a reply with no image returns null rather than a bad source', () => {
+  for (const json of [
+    { choices: [{ message: { content: 'I could not generate that.' } }] },
+    { choices: [{ message: { images: [] } }] },
+    { choices: [] },
+    { error: { message: 'out of credits' } },
+    {},
+  ]) {
+    assert.equal(imageFromAbacusResponse(json), null, JSON.stringify(json));
+  }
+});
+
+test('the Abacus base url is a setting, defaulting to RouteLLM', () => {
+  const saved = process.env.ABACUS_BASE_URL;
+  try {
+    delete process.env.ABACUS_BASE_URL;
+    assert.equal(abacusBaseUrl(), ABACUS_DEFAULT_BASE_URL);
+    assert.match(ABACUS_DEFAULT_BASE_URL, /routellm\.abacus\.ai\/v1$/);
+    process.env.ABACUS_BASE_URL = 'https://example.test/v1/';
+    assert.equal(abacusBaseUrl(), 'https://example.test/v1');
+  } finally {
+    if (saved === undefined) delete process.env.ABACUS_BASE_URL;
+    else process.env.ABACUS_BASE_URL = saved;
+  }
+});
+
+test('an Abacus key alone selects the provider, without SCENE_PROVIDER', () => {
+  const saved = { p: process.env.SCENE_PROVIDER, a: process.env.ABACUS_API_KEY };
+  try {
+    delete process.env.SCENE_PROVIDER;
+    process.env.ABACUS_API_KEY = 'test-key';
+    // Wins over a GEMINI_API_KEY, which needs billing before it can generate.
+    assert.equal(configuredProvider(), 'abacus');
+    assert.equal(ABACUS_DEFAULT_MODEL, 'flux-2-pro');
+  } finally {
+    if (saved.p === undefined) delete process.env.SCENE_PROVIDER;
+    else process.env.SCENE_PROVIDER = saved.p;
+    if (saved.a === undefined) delete process.env.ABACUS_API_KEY;
+    else process.env.ABACUS_API_KEY = saved.a;
   }
 });

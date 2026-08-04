@@ -25,7 +25,7 @@ Product decisions and their reasoning are recorded in [`DECISIONS.md`](DECISIONS
 npm install
 npm run dev          # frontend on http://localhost:5173
 npm run dev:server   # API on http://localhost:3001
-npm test --workspace server   # 52 tests
+npm test --workspace server   # 63 tests
 ```
 
 ## API keys (all optional)
@@ -44,7 +44,7 @@ Every setting is documented in the template itself; in short:
 | Feature | Key | Roughly costs |
 | --- | --- | --- |
 | AI copywriting | `ANTHROPIC_API_KEY` | $0.25 per 30-pin run |
-| Scene backgrounds | `GEMINI_API_KEY` **or** `OPENAI_API_KEY` (+ `SCENE_PROVIDER`) | pennies per run |
+| Scene backgrounds | `ABACUS_API_KEY` (or `OPENAI_API_KEY` / `GEMINI_API_KEY`, + `SCENE_PROVIDER`) | pennies per run |
 | Content360 push | `CONTENT360_API_KEY` | included in your plan |
 
 Content360's plan includes its own AI content generation, but it is only

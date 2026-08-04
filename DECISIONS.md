@@ -65,12 +65,13 @@ Hybrid instead: the image model generates only an EMPTY scene background; the
 seller's real product photograph is composited on top by our own renderer and
 never passes through a generative model, so its pixels cannot be altered.
 
-Provider is a setting (SCENE_PROVIDER=google|openai|procedural), so switching
-is an env change rather than a rebuild:
+Provider is a setting (SCENE_PROVIDER=abacus|google|openai|procedural), so
+switching is an env change rather than a rebuild:
 
-| Setting | Model (override with GOOGLE_IMAGE_MODEL / OPENAI_IMAGE_MODEL) | Key |
+| Setting | Model (override with `*_IMAGE_MODEL`) | Key |
 | --- | --- | --- |
-| google | gemini-3.1-flash-image | GEMINI_API_KEY |
+| **abacus** | **flux-2-pro, on ChatLLM credits — chosen 2026-08-04, see below** | ABACUS_API_KEY |
+| google | gemini-3.1-flash-image (~$0.04/image) | GEMINI_API_KEY |
 | openai | gpt-image-1-mini (~$0.005/image) | OPENAI_API_KEY |
 | procedural | built-in gradient backdrop, no cost | none |
 
@@ -304,3 +305,64 @@ than falling back to an invented time — the silent fallback is what hid this.
   2026-07-31 probing session, carrying this app's exact 09:00/11:00/13:00
   stagger, plus three media uploads from the same session. Left alone: deleting
   a seller's posts is their call, not ours.
+
+## 10. Image provider: Abacus.AI, decided 2026-08-04
+
+Priced the three candidates at our actual usage — 3 backgrounds per run, one
+1024×1024 each — and the answer turned on which subscription the seller
+already holds rather than on the per-image rate.
+
+| Option | Per image | Per run |
+| --- | --- | --- |
+| OpenAI `gpt-image-1-mini`, low | $0.005 | $0.015 |
+| Google `gemini-2.5-flash-image` | $0.039 | $0.12 |
+| Google `gemini-3-pro-image` (Nano Banana Pro) | $0.134 | $0.40 |
+| **Abacus RouteLLM** | ChatLLM credits | **no marginal cost** |
+
+Against ~$0.25/run for copywriting, none of these is expensive. The reasons
+Abacus wins are not about price:
+
+1. **The seller already has the account and the key**, and RouteLLM draws on
+   the ChatLLM subscription's credits, with no markup on proprietary models.
+2. **One key fronts the whole catalogue** — flux, imagen, ideogram, recraft,
+   seedream, dall-e, midjourney and **nano-banana-pro**. Google's best image
+   model is reachable through Abacus *without* a Google Cloud billing
+   relationship, which is the single most useful consequence of this choice.
+3. **Changing model is a config edit**, which is the same portability argument
+   that made OPENAI_BASE_URL worth building, against a much larger shelf.
+
+### It needed its own provider, not the OPENAI_BASE_URL hatch
+
+Abacus is OpenAI-compatible for *chat*, and that is a trap here. Image
+generation does not use `/images/generations` at all: it posts to
+`/chat/completions` with `modalities: ["image","text"]` and an `image_config`
+block, and the image comes back inside the chat reply. So pointing
+OPENAI_BASE_URL at Abacus would fail — a third protocol, built the same way as
+the Google split in §7: pure request-builder and response-parser, unit tested,
+with fetch left alone.
+
+Three details worth keeping:
+
+- **The reply carries the image in one of three places** depending on which
+  model answered: `choices[0].message.images[].image_url.url`, a `data:` URI
+  inside the text content, or a Gemini-style `inline_data` block. The parser
+  checks all three.
+- **It often returns a hosted URL rather than base64.** That is the fetch step
+  §7 deliberately left unbuilt for URL-returning vendors — now built, and
+  routed through `shared/load-image.ts` so it inherits the SSRF guard rather
+  than fetching whatever address a reply names.
+- **`rewrite_prompt` is disabled.** Abacus enables prompt rewriting by
+  default, and it is precisely wrong here: the prompt's entire job is to
+  demand an EMPTY frame, and a rewriter that helpfully adds a product back in
+  would break the one guarantee this pipeline makes.
+
+### Unverified against the live API
+
+The request and response shapes were read off a working third-party client,
+not off Abacus's own reference, which does not publish the payload. Nothing
+here has touched the real API — the subscription is lapsed at time of writing.
+So this is in exactly the state §7's Google path is in: unit tested, unproven.
+
+The difference, and the reason it is worth having built: with a renewed
+subscription this **can** be proven in one call, where Google's cannot be
+proven at all until a billing relationship exists.

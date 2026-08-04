@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { loadImageSource } from '../shared/load-image.js';
 
 // Scene-background providers. The hybrid rule: a provider only ever
 // generates an EMPTY background. The seller's product photograph is
@@ -8,7 +9,7 @@ import sharp from 'sharp';
 // Which provider runs is a setting (SCENE_PROVIDER), so switching between
 // Google and OpenAI is an env change, not a rebuild.
 
-export type ProviderName = 'google' | 'openai' | 'procedural';
+export type ProviderName = 'abacus' | 'google' | 'openai' | 'procedural';
 
 export type SceneRequest = {
   scene: string; // e.g. "Cozy home setting"
@@ -23,9 +24,11 @@ export type SceneResult =
 
 export function configuredProvider(): ProviderName {
   const raw = (process.env.SCENE_PROVIDER ?? '').toLowerCase();
-  if (raw === 'google' || raw === 'openai' || raw === 'procedural') return raw;
+  if (raw === 'abacus' || raw === 'google' || raw === 'openai' || raw === 'procedural') return raw;
   // Fall back to whichever key exists; procedural keeps the app usable with
-  // no keys at all.
+  // no keys at all. Abacus leads because it is the one a key alone is enough
+  // for — Google additionally needs billing enabled before it can generate.
+  if (process.env.ABACUS_API_KEY) return 'abacus';
   if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return 'google';
   if (process.env.OPENAI_API_KEY) return 'openai';
   return 'procedural';
@@ -38,6 +41,22 @@ export function configuredProvider(): ProviderName {
 export const GOOGLE_DEFAULT_MODEL = 'gemini-3.1-flash-image';
 export const OPENAI_DEFAULT_MODEL = 'gpt-image-1-mini';
 
+// Abacus fronts many image models behind one key — flux-kontext, flux-2-pro,
+// dall-e, ideogram, recraft, imagen, seedream, nano-banana-pro, midjourney.
+// The default is a fast photographic one, because a background is the easy
+// case; ABACUS_IMAGE_MODEL reaches the rest without a code change.
+export const ABACUS_DEFAULT_MODEL = 'flux-2-pro';
+export const ABACUS_DEFAULT_BASE_URL = 'https://routellm.abacus.ai/v1';
+
+export function abacusModel(): string {
+  return process.env.ABACUS_IMAGE_MODEL || ABACUS_DEFAULT_MODEL;
+}
+
+export function abacusBaseUrl(): string {
+  const raw = (process.env.ABACUS_BASE_URL ?? '').trim();
+  return (raw || ABACUS_DEFAULT_BASE_URL).replace(/\/+$/, '');
+}
+
 export function googleModel(): string {
   return process.env.GOOGLE_IMAGE_MODEL || GOOGLE_DEFAULT_MODEL;
 }
@@ -49,9 +68,11 @@ export function openAiModel(): string {
 export function providerStatus() {
   return {
     active: configuredProvider(),
+    abacus: Boolean(process.env.ABACUS_API_KEY),
     google: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
     openai: Boolean(process.env.OPENAI_API_KEY),
     models: {
+      abacus: abacusModel(),
       google: googleModel(),
       openai: openAiModel(),
     },
@@ -73,6 +94,124 @@ export function backgroundPrompt(req: SceneRequest): string {
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+// — Abacus (RouteLLM) —
+//
+// Abacus is OpenAI-compatible for chat, but images do NOT go to
+// /images/generations. They go to /chat/completions with `modalities` and
+// `image_config`, and come back inside the chat reply — so OPENAI_BASE_URL
+// cannot reach it and this needs its own shape. One key fronts flux, imagen,
+// nano-banana-pro, midjourney and the rest, so the model is a setting.
+
+// Reduce the requested frame to the ratio strings these models accept.
+export function aspectRatioFor(req: SceneRequest): string {
+  const r = req.width / Math.max(1, req.height);
+  const known: [string, number][] = [
+    ['1:1', 1],
+    ['2:3', 2 / 3],
+    ['3:2', 1.5],
+    ['4:5', 0.8],
+    ['9:16', 9 / 16],
+    ['16:9', 16 / 9],
+  ];
+  return known.reduce((best, cur) =>
+    Math.abs(cur[1] - r) < Math.abs(best[1] - r) ? cur : best
+  )[0];
+}
+
+export function abacusRequestBody(model: string, req: SceneRequest): unknown {
+  return {
+    model,
+    modalities: ['image', 'text'],
+    messages: [{ role: 'user', content: backgroundPrompt(req) }],
+    image_config: {
+      aspect_ratio: aspectRatioFor(req),
+      num_images: 1,
+      // Prompt rewriting is on by default at Abacus, and it is exactly wrong
+      // here: the prompt's whole job is to demand an EMPTY frame, and a
+      // rewriter that helpfully adds a product breaks the one guarantee this
+      // pipeline makes (§7 — the seller's photo is the only product in shot).
+      rewrite_prompt: false,
+    },
+  };
+}
+
+// The reply carries the image in one of three places depending on which model
+// answered, so check all three. Returns a source string — a data: URL or an
+// http URL — rather than bytes, leaving the fetch to the guarded loader.
+export function imageFromAbacusResponse(json: any): string | null {
+  const message = json?.choices?.[0]?.message;
+
+  // 1. The OpenAI-compatible shape most models answer with.
+  const images = message?.images;
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      const url = img?.image_url?.url ?? img?.url;
+      if (typeof url === 'string' && url) return url;
+    }
+  }
+
+  // 2. A data: URI embedded in the text content.
+  const content = message?.content;
+  if (typeof content === 'string') {
+    const match = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/.exec(content);
+    if (match) return match[0];
+  }
+
+  // 3. The Gemini-style inline block, for the models that pass it through.
+  const parts = Array.isArray(content) ? content : [];
+  for (const part of parts) {
+    const inline = part?.inline_data ?? part?.inlineData;
+    const b64 = inline?.data;
+    if (typeof b64 === 'string' && b64) {
+      const mime = inline?.mime_type ?? inline?.mimeType ?? 'image/png';
+      return `data:${mime};base64,${b64}`;
+    }
+  }
+  return null;
+}
+
+async function generateAbacus(req: SceneRequest): Promise<SceneResult> {
+  const key = process.env.ABACUS_API_KEY;
+  if (!key) {
+    return { ok: false, provider: 'abacus', message: 'No Abacus API key — set ABACUS_API_KEY.' };
+  }
+  const model = abacusModel();
+  try {
+    const res = await fetch(`${abacusBaseUrl()}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify(abacusRequestBody(model, req)),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 200);
+      return {
+        ok: false,
+        provider: 'abacus',
+        message: `Abacus rejected the request (${res.status}). ${detail}`.trim(),
+      };
+    }
+    const source = imageFromAbacusResponse(await res.json());
+    if (!source) {
+      return { ok: false, provider: 'abacus', message: 'Abacus returned no image data.' };
+    }
+    // Abacus hands back a hosted URL as often as base64, so this goes through
+    // the shared loader — which carries the SSRF guard rather than fetching
+    // whatever address a reply happens to name.
+    const image = await loadImageSource(source);
+    if (!image) {
+      return {
+        ok: false,
+        provider: 'abacus',
+        message: 'Abacus returned an image that could not be read back.',
+      };
+    }
+    return { ok: true, image, provider: 'abacus', model };
+  } catch {
+    return { ok: false, provider: 'abacus', message: 'Could not reach Abacus image generation.' };
+  }
 }
 
 // — Google (Imagen / Gemini image, a.k.a. Nano Banana) —
@@ -241,6 +380,7 @@ async function generateProcedural(req: SceneRequest): Promise<SceneResult> {
 
 export async function generateBackground(req: SceneRequest): Promise<SceneResult> {
   const provider = configuredProvider();
+  if (provider === 'abacus') return generateAbacus(req);
   if (provider === 'google') return generateGoogle(req);
   if (provider === 'openai') return generateOpenAI(req);
   return generateProcedural(req);
