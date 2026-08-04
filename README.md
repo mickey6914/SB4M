@@ -19,13 +19,16 @@ The complete design specification lives in
 
 Product decisions and their reasoning are recorded in [`DECISIONS.md`](DECISIONS.md).
 
+New here? [`FIRST_RUN.md`](FIRST_RUN.md) walks through the app end to end and
+marks the point where a run stops being reversible.
+
 ## Running locally
 
 ```
 npm install
 npm run dev          # frontend on http://localhost:5173
 npm run dev:server   # API on http://localhost:3001
-npm test --workspace server   # 63 tests
+npm test --workspace server   # 65 tests
 ```
 
 ## API keys (all optional)
