@@ -22,6 +22,23 @@ async function productOnScene(): Promise<Buffer> {
   return sharp(Buffer.from(svg)).jpeg().toBuffer();
 }
 
+// A background for the compositing tests. They are about compose.ts, not about
+// which provider is configured, so pin the procedural one: otherwise a
+// GEMINI_API_KEY or OPENAI_API_KEY in the ambient environment turns these into
+// live, billed, network-dependent calls that fail on a quota error.
+async function backdrop(scene: string, size = 1024): Promise<Buffer> {
+  const saved = process.env.SCENE_PROVIDER;
+  process.env.SCENE_PROVIDER = 'procedural';
+  try {
+    const bg = await generateBackground({ scene, width: size, height: size });
+    assert.ok(bg.ok);
+    return bg.image;
+  } finally {
+    if (saved === undefined) delete process.env.SCENE_PROVIDER;
+    else process.env.SCENE_PROVIDER = saved;
+  }
+}
+
 test('the background prompt demands an empty frame and a stated light direction', () => {
   const p = backgroundPrompt({ scene: 'Cozy home setting', width: 1024, height: 1024 });
   assert.match(p, /empty/i);
@@ -83,18 +100,16 @@ test('a photo that is not on white is left untouched rather than damaged', async
 });
 
 test('the composed mockup keeps the background frame size', async () => {
-  const bg = await generateBackground({ scene: 'Gift box scene', width: 1024, height: 1024 });
-  assert.ok(bg.ok);
-  const mockup = await composeMockup(bg.image, await productOnWhite());
+  const mockup = await composeMockup(await backdrop('Gift box scene'), await productOnWhite());
   const meta = await sharp(mockup).metadata();
   assert.equal(meta.width, 1024);
   assert.equal(meta.height, 1024);
 });
 
 test('the product survives compositing unaltered: its colour is present in the mockup', async () => {
-  const bg = await generateBackground({ scene: 'Linen table', width: 1024, height: 1024 });
-  assert.ok(bg.ok);
-  const mockup = await composeMockup(bg.image, await productOnWhite(), { scale: 0.6 });
+  const mockup = await composeMockup(await backdrop('Linen table'), await productOnWhite(), {
+    scale: 0.6,
+  });
   const { data, info } = await sharp(mockup).raw().toBuffer({ resolveWithObject: true });
 
   // Look for the product's exact blue (#1f4f7a) somewhere in the frame.
@@ -113,10 +128,9 @@ test('the product survives compositing unaltered: its colour is present in the m
 });
 
 test('a contact shadow grounds the product (darker band beneath it)', async () => {
-  const bg = await generateBackground({ scene: 'Studio shelf', width: 1024, height: 1024 });
-  assert.ok(bg.ok);
-  const withShadow = await composeMockup(bg.image, await productOnWhite(), { shadow: true });
-  const without = await composeMockup(bg.image, await productOnWhite(), { shadow: false });
+  const bg = await backdrop('Studio shelf');
+  const withShadow = await composeMockup(bg, await productOnWhite(), { shadow: true });
+  const without = await composeMockup(bg, await productOnWhite(), { shadow: false });
 
   // Sample the strip just under the product baseline (0.78 of the frame).
   const strip = async (img: Buffer) => {
