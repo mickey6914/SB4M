@@ -31,14 +31,29 @@ export function configuredProvider(): ProviderName {
   return 'procedural';
 }
 
+// Defaults. Google's Imagen models were retired for new API projects in 2026
+// ("no longer available to new users"), so the default is a Gemini image
+// model, which is reachable — and speaks a different protocol. See
+// googleRoute() below.
+export const GOOGLE_DEFAULT_MODEL = 'gemini-3.1-flash-image';
+export const OPENAI_DEFAULT_MODEL = 'gpt-image-1-mini';
+
+export function googleModel(): string {
+  return process.env.GOOGLE_IMAGE_MODEL || GOOGLE_DEFAULT_MODEL;
+}
+
+export function openAiModel(): string {
+  return process.env.OPENAI_IMAGE_MODEL || OPENAI_DEFAULT_MODEL;
+}
+
 export function providerStatus() {
   return {
     active: configuredProvider(),
     google: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
     openai: Boolean(process.env.OPENAI_API_KEY),
     models: {
-      google: process.env.GOOGLE_IMAGE_MODEL ?? 'imagen-4.0-fast-generate-001',
-      openai: process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-1-mini',
+      google: googleModel(),
+      openai: openAiModel(),
     },
   };
 }
@@ -61,51 +76,106 @@ export function backgroundPrompt(req: SceneRequest): string {
 }
 
 // — Google (Imagen / Gemini image, a.k.a. Nano Banana) —
+//
+// Google has two image protocols on the same host, and which one a model
+// speaks is decided by the model, not by us:
+//
+//   imagen-*        POST :predict          instances[] → predictions[].bytesBase64Encoded
+//   gemini-*-image  POST :generateContent  contents[]  → candidates[].content.parts[].inlineData
+//
+// So the model name picks the route. The pieces are split out as pure
+// functions because that is the part worth testing — building the right body
+// and finding the image in the reply — while fetch itself is not.
+
+export type GoogleRoute = 'predict' | 'generateContent';
+
+export function googleRoute(model: string): GoogleRoute {
+  return /^imagen-/i.test(model) ? 'predict' : 'generateContent';
+}
+
+export function googleEndpoint(model: string): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${googleRoute(model)}`;
+}
+
+export function googleRequestBody(model: string, req: SceneRequest): unknown {
+  const prompt = backgroundPrompt(req);
+  if (googleRoute(model) === 'predict') {
+    return { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: '1:1' } };
+  }
+  // No imageConfig: the dedicated image models default to a square image, and
+  // composeMockup() sizes itself from whatever frame comes back, so there is
+  // nothing to gain by pinning a ratio we would have to guess the field name for.
+  return { contents: [{ parts: [{ text: prompt }] }] };
+}
+
+// Both shapes carry the image as base64 in a different place. Returns null
+// rather than throwing when the reply holds no image — a model that answers
+// with text instead is a normal failure, not an exception.
+export function imageFromGoogleResponse(model: string, json: any): Buffer | null {
+  if (googleRoute(model) === 'predict') {
+    const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
+    return typeof b64 === 'string' && b64 ? Buffer.from(b64, 'base64') : null;
+  }
+  const parts = json?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    const inline = part?.inlineData ?? part?.inline_data;
+    const b64 = inline?.data;
+    if (typeof b64 === 'string' && b64) return Buffer.from(b64, 'base64');
+  }
+  return null;
+}
 
 async function generateGoogle(req: SceneRequest): Promise<SceneResult> {
   const key = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   if (!key) {
     return { ok: false, provider: 'google', message: 'No Google API key — set GEMINI_API_KEY.' };
   }
-  const model = process.env.GOOGLE_IMAGE_MODEL ?? 'imagen-4.0-fast-generate-001';
+  const model = googleModel();
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          instances: [{ prompt: backgroundPrompt(req) }],
-          parameters: { sampleCount: 1, aspectRatio: '1:1' },
-        }),
-        signal: AbortSignal.timeout(60_000),
-      }
-    );
+    const res = await fetch(googleEndpoint(model), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(googleRequestBody(model, req)),
+      signal: AbortSignal.timeout(60_000),
+    });
     if (!res.ok) {
       const detail = (await res.text().catch(() => '')).slice(0, 200);
       return { ok: false, provider: 'google', message: `Google rejected the request (${res.status}). ${detail}`.trim() };
     }
-    const json: any = await res.json();
-    const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
-    if (typeof b64 !== 'string') {
+    const image = imageFromGoogleResponse(model, await res.json());
+    if (!image) {
       return { ok: false, provider: 'google', message: 'Google returned no image data.' };
     }
-    return { ok: true, image: Buffer.from(b64, 'base64'), provider: 'google', model };
+    return { ok: true, image, provider: 'google', model };
   } catch {
     return { ok: false, provider: 'google', message: 'Could not reach Google image generation.' };
   }
 }
 
-// — OpenAI (GPT Image) —
+// — OpenAI (GPT Image), and anything that imitates it —
+//
+// OpenAI's images API is the most widely copied one there is, so pointing the
+// base URL somewhere else is the escape hatch for this whole box: Fal,
+// Together, DeepInfra, Azure or a local shim all become an env change rather
+// than a code change. Which matters, because Google retired an entire model
+// family out from under this file once already.
+
+export const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+
+export function openAiBaseUrl(): string {
+  const raw = (process.env.OPENAI_BASE_URL ?? '').trim();
+  return (raw || OPENAI_DEFAULT_BASE_URL).replace(/\/+$/, '');
+}
 
 async function generateOpenAI(req: SceneRequest): Promise<SceneResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
     return { ok: false, provider: 'openai', message: 'No OpenAI API key — set OPENAI_API_KEY.' };
   }
-  const model = process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-1-mini';
+  const model = openAiModel();
   try {
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
+    const res = await fetch(`${openAiBaseUrl()}/images/generations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({

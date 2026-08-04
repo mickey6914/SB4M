@@ -25,7 +25,7 @@ Product decisions and their reasoning are recorded in [`DECISIONS.md`](DECISIONS
 npm install
 npm run dev          # frontend on http://localhost:5173
 npm run dev:server   # API on http://localhost:3001
-npm test --workspace server   # 47 tests
+npm test --workspace server   # 52 tests
 ```
 
 ## API keys (all optional)

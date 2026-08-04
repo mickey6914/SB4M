@@ -70,7 +70,7 @@ is an env change rather than a rebuild:
 
 | Setting | Model (override with GOOGLE_IMAGE_MODEL / OPENAI_IMAGE_MODEL) | Key |
 | --- | --- | --- |
-| google | imagen-4.0-fast-generate-001 (~$0.02/image) | GEMINI_API_KEY |
+| google | gemini-3.1-flash-image | GEMINI_API_KEY |
 | openai | gpt-image-1-mini (~$0.005/image) | OPENAI_API_KEY |
 | procedural | built-in gradient backdrop, no cost | none |
 
@@ -78,10 +78,48 @@ Three backgrounds per run, reused across its pins, so a run costs pennies.
 "Nano Banana" is Google's Gemini image family — reachable by pointing
 GOOGLE_IMAGE_MODEL at gemini-3-pro-image-preview et al. Consumer ChatGPT /
 Gemini / Claude subscriptions do not cover programmatic calls; API keys do.
+(That GOOGLE_IMAGE_MODEL override did not actually work when written — see the
+amendment below.)
 
 Escape hatch if the composite blend is not good enough on a product type
 (mugs, apparel): swap this one step for a product-photography API such as
 Claid or Photoroom. Nothing else in the pipeline changes.
+
+### Amended 2026-08-04: Google moved, and providers are now swappable
+
+Probing the live API with the seller's key found the original table's Google
+row unreachable. Two separate things had changed:
+
+1. **The imagen-\* family is closed to new accounts.** Every `:predict` model,
+   including the `imagen-4.0-fast-generate-001` default above, answers 404
+   *"no longer available to new users."* The Gemini image models that replaced
+   them (`gemini-3.1-flash-image`, `gemini-3-pro-image-preview`) speak
+   `:generateContent` instead — a different request body and a different place
+   to find the image in the reply. The client now picks the protocol from the
+   model name, so both work and the default is a model that exists. The old
+   `imagen-*` names still route correctly for an older project that has them.
+2. **Image generation is not in Google's free tier.** The key authenticates
+   and lists models happily, then returns `limit: 0` quota errors for images
+   until billing is enabled on its project. So a working key is not the same
+   as a working feature here, and `.env.example` now says so.
+
+The wider lesson is the durable one: a vendor retired a model family out from
+under a hardcoded default, and fixing it needed a code change and a deploy.
+So the OpenAI box is now an **OpenAI-compatible** box — `OPENAI_BASE_URL` points
+it at any service that copies that API (Fal, Together, DeepInfra, Azure, a
+local shim), making the next such break a config edit instead. The response
+parser reads `b64_json`, which is what OpenAI itself returns; a vendor that
+returns image *URLs* instead would need the small addition of a fetch step,
+deliberately not built until something needs it.
+
+`SCENE_PROVIDER=procedural` remains the always-works fallback, and the app
+does not fall back to it silently — a configured provider that fails says so,
+because a key that quietly does nothing is worse than an error.
+
+**Untested against the live wire:** the `:generateContent` path is verified by
+unit tests on the request body and response parsing, not against Google, since
+the quota above rejects the call before the shape is ever evaluated. It stays
+unproven end-to-end until billing is on.
 
 ## 8. Content360's real API
 

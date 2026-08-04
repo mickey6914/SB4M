@@ -2,7 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import { composeMockup, cutout } from '../src/scenes/compose.js';
-import { backgroundPrompt, configuredProvider, generateBackground } from '../src/scenes/providers.js';
+import {
+  GOOGLE_DEFAULT_MODEL,
+  OPENAI_DEFAULT_BASE_URL,
+  backgroundPrompt,
+  configuredProvider,
+  generateBackground,
+  googleEndpoint,
+  googleRequestBody,
+  googleRoute,
+  imageFromGoogleResponse,
+  openAiBaseUrl,
+} from '../src/scenes/providers.js';
 
 // A studio-style product shot: a dark square on flat white, like a listing photo.
 async function productOnWhite(): Promise<Buffer> {
@@ -142,4 +153,90 @@ test('a contact shadow grounds the product (darker band beneath it)', async () =
     return data.reduce((a, b) => a + b, 0) / data.length;
   };
   assert.ok((await strip(withShadow)) < (await strip(without)), 'shadow darkens the contact area');
+});
+
+// — Google's two protocols —
+// Which one a model speaks is decided by the model. Getting this wrong is how
+// the default silently 404'd: imagen-* was retired for new accounts, and the
+// gemini-*-image models that replaced it do not answer on :predict.
+
+const SQUARE = { scene: 'Cozy home setting', width: 1024, height: 1024 };
+
+test('the model name picks the protocol, and the default is a reachable one', () => {
+  assert.equal(googleRoute('imagen-4.0-fast-generate-001'), 'predict');
+  assert.equal(googleRoute('imagen-4.0-ultra-generate-001'), 'predict');
+  assert.equal(googleRoute('gemini-3.1-flash-image'), 'generateContent');
+  assert.equal(googleRoute('gemini-3-pro-image-preview'), 'generateContent');
+  // The documented "Nano Banana" override must land on a route that exists.
+  assert.equal(googleRoute(GOOGLE_DEFAULT_MODEL), 'generateContent');
+  assert.match(googleEndpoint(GOOGLE_DEFAULT_MODEL), /:generateContent$/);
+  assert.match(googleEndpoint('imagen-4.0-generate-001'), /:predict$/);
+});
+
+test('each protocol gets the body shape it expects, carrying the same prompt', () => {
+  const predict = googleRequestBody('imagen-4.0-generate-001', SQUARE) as any;
+  assert.equal(predict.instances[0].prompt, backgroundPrompt(SQUARE));
+  assert.equal(predict.parameters.sampleCount, 1);
+
+  const generate = googleRequestBody('gemini-3.1-flash-image', SQUARE) as any;
+  assert.equal(generate.contents[0].parts[0].text, backgroundPrompt(SQUARE));
+  // generateContent has no instances/parameters — sending them is a 400.
+  assert.equal(generate.instances, undefined);
+  assert.equal(generate.parameters, undefined);
+});
+
+test('the image is found in whichever place the protocol puts it', () => {
+  const png = Buffer.from('not-really-a-png');
+  const b64 = png.toString('base64');
+
+  const fromPredict = imageFromGoogleResponse('imagen-4.0-generate-001', {
+    predictions: [{ bytesBase64Encoded: b64 }],
+  });
+  assert.deepEqual(fromPredict, png);
+
+  // A generateContent reply may lead with a text part before the image.
+  const fromGenerate = imageFromGoogleResponse('gemini-3.1-flash-image', {
+    candidates: [{ content: { parts: [{ text: 'Here you go' }, { inlineData: { data: b64 } }] } }],
+  });
+  assert.deepEqual(fromGenerate, png);
+
+  // Snake case is the same reply in the other JSON convention.
+  const snake = imageFromGoogleResponse('gemini-3.1-flash-image', {
+    candidates: [{ content: { parts: [{ inline_data: { data: b64 } }] } }],
+  });
+  assert.deepEqual(snake, png);
+});
+
+test('a reply with no image returns null rather than throwing', () => {
+  for (const [model, json] of [
+    ['imagen-4.0-generate-001', { predictions: [] }],
+    ['imagen-4.0-generate-001', {}],
+    ['gemini-3.1-flash-image', { candidates: [{ content: { parts: [{ text: 'I cannot' }] } }] }],
+    ['gemini-3.1-flash-image', { error: { code: 429 } }],
+  ] as const) {
+    assert.equal(imageFromGoogleResponse(model, json), null, `${model} ${JSON.stringify(json)}`);
+  }
+});
+
+// — The OpenAI-compatible escape hatch —
+
+test('the OpenAI base url is a setting, so another vendor needs no code change', () => {
+  const saved = process.env.OPENAI_BASE_URL;
+  try {
+    delete process.env.OPENAI_BASE_URL;
+    assert.equal(openAiBaseUrl(), OPENAI_DEFAULT_BASE_URL);
+
+    process.env.OPENAI_BASE_URL = 'https://api.together.xyz/v1';
+    assert.equal(openAiBaseUrl(), 'https://api.together.xyz/v1');
+
+    // A pasted url with a trailing slash must not produce a double slash.
+    process.env.OPENAI_BASE_URL = 'https://api.together.xyz/v1/';
+    assert.equal(openAiBaseUrl(), 'https://api.together.xyz/v1');
+
+    process.env.OPENAI_BASE_URL = '   ';
+    assert.equal(openAiBaseUrl(), OPENAI_DEFAULT_BASE_URL);
+  } finally {
+    if (saved === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = saved;
+  }
 });
