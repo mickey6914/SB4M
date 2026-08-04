@@ -373,11 +373,51 @@ function ReviewBody({ runId }: { runId: string }) {
           ? (['pinterest', 'facebook'] as const)
           : (['pinterest', 'facebook', 'instagram'] as const);
 
+    // The times we push have to be the times the calendar showed. They come
+    // from the scheduling engine — the workspace window, the per-network
+    // stagger and the daily caps all live there, and none of it can be
+    // reconstructed here. Asking for exactly the approved pins is safe: the
+    // engine fills slots in pin order, so the first N are the same either way.
+    let slots: Map<string, string>;
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          productId: run.listing?.url ?? 'uploads',
+          productTitle: run.listing?.title ?? 'Uploaded product',
+          pinCount: review.approved,
+          fanOut: run.fanOut,
+          rules: {
+            windowStart: rules.windowStart,
+            windowEnd: rules.windowEnd,
+            maxPerNetworkPerDay: rules.maxPerNetworkPerDay,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      slots = new Map<string, string>(
+        json.posts.map((p: { pinIndex: number; network: string; date: string; time: string }) => [
+          `${p.pinIndex}#${p.network}`,
+          `${p.date}T${p.time}:00.000Z`,
+        ])
+      );
+    } catch {
+      // Falling back to an invented time is what made the push disagree with
+      // the calendar in the first place. Refuse instead — nothing is sent.
+      setInlinePushError(
+        'Could not work out the posting schedule, so nothing was pushed. Check the workspace rules in Connections and try again.'
+      );
+      setPushing(false);
+      return;
+    }
+
     const posts = review.pins.slice(0, review.approved).flatMap((pin, i) =>
       wanted.map((network) => ({
         localId: `${runId}#${i + 1}#${network}`,
         network,
-        scheduledAt: new Date(Date.now() + (i + 1) * 86_400_000).toISOString(),
+        scheduledAt: slots.get(`${i + 1}#${network}`)!,
         caption: pin.desc,
         assetUrl: rendered?.[networkCrop[network]] ?? src ?? '',
         // The account chosen in Connections. Sent explicitly so a workspace
@@ -399,6 +439,17 @@ function ReviewBody({ runId }: { runId: string }) {
         ...(network === 'facebook' ? { facebook: { postType: 'post' as const } } : {}),
       }))
     );
+
+    // The engine returns a slot for every pin on every fanned-out network, so
+    // a gap here means the two disagree about the run. Push nothing rather
+    // than a post with no time on it.
+    if (posts.some((p) => !p.scheduledAt)) {
+      setInlinePushError(
+        'The schedule came back incomplete, so nothing was pushed. Reload the run and try again.'
+      );
+      setPushing(false);
+      return;
+    }
 
     try {
       const res = await fetch('/api/content360/push', {

@@ -6,6 +6,9 @@ import {
   overlayTop,
   renderAll,
   renderCrop,
+  barHeightFor,
+  fitLabel,
+  overlaySvg,
   type CropRatio,
 } from '../src/crops/render.js';
 
@@ -70,4 +73,67 @@ test('renderAll returns every requested ratio', async () => {
   const source = await testSource();
   const out = await renderAll(source, ['2:3', '4:5'], { text: 'EAV', pos: 'middle' });
   assert.deepEqual(Object.keys(out).sort(), ['2:3', '4:5']);
+});
+
+// — The overlay has to fit inside its bar —
+// SVG <text> does not wrap and does not shrink. A title wider than the bar is
+// silently clipped at both ends by the viewport, so it looks like a rendered
+// pin right up until you read it. The first live run produced
+// "S ALLBIRDS FLIP FLOP IN ANTHRACITE COM" from a 46-character AI title.
+
+// Mirrors the estimate the renderer sets type by, so a fit assertion here
+// means the same thing the renderer means.
+function estimatedWidth(label: string, fontSize: number): number {
+  const tracking = Math.round(fontSize * 0.08);
+  return label.length * fontSize * 0.68 + tracking * (label.length - 1);
+}
+
+const REAL_TITLE = "Men's Allbirds Flip Flop in Anthracite Comfort";
+
+test('a long title is shrunk to fit rather than clipped', () => {
+  for (const { width } of Object.values(CROP_SIZES)) {
+    const { label, fontSize, truncated } = fitLabel(REAL_TITLE, width);
+    assert.equal(truncated, false, `${width}px should shrink, not truncate`);
+    assert.equal(label, REAL_TITLE.toUpperCase(), 'every word survives');
+    assert.ok(
+      estimatedWidth(label, fontSize) <= width,
+      `label overflows the ${width}px bar at ${fontSize}px`
+    );
+  }
+});
+
+test('a short title keeps its natural size — shrinking is not applied blindly', () => {
+  const width = CROP_SIZES['2:3'].width;
+  const natural = Math.round(barHeightFor(width) * 0.42);
+  const { label, fontSize, truncated } = fitLabel('Linen Throw', width);
+  assert.equal(fontSize, natural);
+  assert.equal(label, 'LINEN THROW');
+  assert.equal(truncated, false);
+});
+
+test('a title too long to shrink is truncated, and the ellipsis fits too', () => {
+  const width = CROP_SIZES['2:3'].width;
+  const absurd = 'Handmade Personalised Watercolour Pet Portrait Keepsake Gift For Dog Lovers And Cat People Alike';
+  const { label, fontSize, truncated } = fitLabel(absurd, width);
+  assert.equal(truncated, true);
+  assert.ok(label.endsWith('…'), 'truncation is visible, not silent');
+  assert.ok(estimatedWidth(label, fontSize) <= width, 'the truncated label fits');
+  // Floor is a readability limit, not an excuse to keep shrinking.
+  assert.ok(fontSize >= Math.round(barHeightFor(width) * 0.42 * 0.62) - 1);
+});
+
+test('the rendered bar carries the fitted size, not the natural one', async () => {
+  const width = CROP_SIZES['4:5'].width;
+  const svg = overlaySvg(width, REAL_TITLE).toString();
+  const natural = Math.round(barHeightFor(width) * 0.42);
+  const drawn = Number(/font-size="(\d+)"/.exec(svg)?.[1]);
+  assert.ok(drawn > 0 && drawn < natural, `drawn ${drawn} should be under natural ${natural}`);
+  // The bar itself does not move — only the type inside it changes.
+  assert.match(svg, new RegExp(`height="${barHeightFor(width)}"`));
+});
+
+test('an apostrophe in a real title survives as text, not markup', () => {
+  const svg = overlaySvg(CROP_SIZES['1:1'].width, REAL_TITLE).toString();
+  assert.match(svg, /MEN&#39;S|MEN'S/);
+  assert.doesNotMatch(svg, /<text[^>]*>[^<]*<(?!\/text)/);
 });

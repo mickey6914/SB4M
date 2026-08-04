@@ -224,6 +224,13 @@ fallback would defeat it.
 Boards belong to a Pinterest account, so switching the Pinterest account clears
 the board rather than pointing a pin at a board the new account does not own.
 
+### Correction: media is deleted on the collection, not the item
+
+`DELETE /media/{id}` answers 405. Deletion is `DELETE /media` with
+`{"items": [id, …]}` in the body — note `items`, not `ids`, which 422s. Posts
+are the other way round: `DELETE /posts/{uuid}` per item. Found while cleaning
+up after the run in §9.
+
 ### The plan's AI credits are not usable here
 
 **No.** The lifetime plan advertises "AI Content Generation", but it is not
@@ -240,3 +247,60 @@ So copywriting stays on `ANTHROPIC_API_KEY` and the ~$0.25 per 30-pin run stands
 — which is what §6 already predicted for programmatic Claude calls. Whatever AI
 the plan includes lives in Content360's own composer UI, for a human typing into
 it, and there is no API to spend those credits from.
+
+## 9. The first end-to-end run
+
+Run 2026-08-04 against live services, with `SCENE_PROVIDER=procedural` because
+Google's image quota is still zero (§7). Every stage had passing unit tests
+beforehand. Two of them were still broken, and both breaks were in the seams
+between increments rather than inside any one of them — which is the argument
+for doing this at all.
+
+**What the run did:** ingested a real Shopify listing (5 images, price, clean
+description), wrote copy with live Claude, composed three scene mockups,
+rendered all four crops, computed a schedule, then pushed one pin fanned to all
+three networks — real media upload, real post creation, real uuids, real status
+read-back — and deleted all three posts and their uploads afterwards, so nothing
+reached the seller's audience.
+
+### Bug 1: the overlay was clipped, not fitted
+
+SVG `<text>` neither wraps nor shrinks, and the type size was derived from the
+bar width alone. The AI's 46-character title overflowed the viewport and was cut
+off at both ends: `MEN'S ALLBIRDS FLIP FLOP IN ANTHRACITE COMFORT` rendered as
+`S ALLBIRDS FLIP FLOP IN ANTHRACITE COM`. On every ratio.
+
+The renderer now measures before it draws — shrinking the type to fit, and
+truncating with an ellipsis only once shrinking hits a readability floor. The
+old tests passed because they asserted the overlay *moved* per ratio and that
+pixels *changed*; none asserted the words were still there. The new ones do.
+
+### Bug 2: the scheduling engine drove the calendar and nothing else
+
+Increment 6 built the workspace rules — the 09:00–17:00 window, the per-network
+stagger, the daily caps, no same product twice on one network per day. Increment
+7 built the push. Nothing connected them: `Review.tsx` set every post's time to
+`Date.now() + (i + 1) days`, so the calendar showed one plan and the push sent
+another. All three networks got an identical timestamp, at whatever hour the
+seller happened to click the button.
+
+Review now asks the engine for the same schedule the calendar renders and posts
+at those times. If the schedule cannot be computed it refuses to push rather
+than falling back to an invented time — the silent fallback is what hid this.
+
+### Left standing, deliberately
+
+- **A collection page ingests as a "listing".** Pointed at a category URL, the
+  reader finds no product, falls back to page-level Open Graph, and returns
+  `ok: true` with the site's name and its logo — which would produce thirty pins
+  of a logo. The honest answer already exists (`not_product`); Open Graph
+  fallback just needs to require something product-shaped before it claims one.
+- **`ANTHROPIC_BASE_URL` silently redirects copywriting.** The SDK reads it from
+  the environment, so a host that sets it for its own purposes takes over the
+  app's Claude calls even though the key is passed explicitly. Harmless on the
+  seller's machine, where nothing sets it. Pinning the base URL alongside the
+  key would close it, the same way §7's key-name fix did.
+- **Six posts scheduled for November 2027** sit in the workspace from the
+  2026-07-31 probing session, carrying this app's exact 09:00/11:00/13:00
+  stagger, plus three media uploads from the same session. Left alone: deleting
+  a seller's posts is their call, not ours.

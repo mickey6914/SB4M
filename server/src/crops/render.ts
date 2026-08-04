@@ -25,21 +25,75 @@ function escapeXml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export function barHeightFor(width: number): number {
+  return Math.round(width * 0.085);
+}
+
+// SVG <text> neither wraps nor shrinks: a label wider than the bar simply
+// overflows and is clipped at both ends by the viewport, which is what a
+// 46-character AI-written title did to every ratio. So measure before
+// drawing.
+//
+// Advance width of the design's bold uppercase face, in ems. Archivo is the
+// design's, DejaVu Sans Bold is what the rasterizer falls back to when
+// Archivo is not installed on the host, and the two are close enough at this
+// size that one constant covers both. Deliberately a slight over-estimate —
+// erring wide costs a pixel of type, erring narrow costs a clipped word.
+const ADVANCE_EM = 0.68;
+
+// Type is allowed to shrink to this fraction of its natural size. Past that a
+// title is too long to set on one line at any readable size, and truncating
+// reads better than a caption in mouse type.
+const MIN_SCALE = 0.62;
+const SIDE_PADDING = 0.94;
+
+function labelWidth(label: string, fontSize: number): number {
+  if (label.length === 0) return 0;
+  const tracking = Math.round(fontSize * 0.08);
+  return label.length * fontSize * ADVANCE_EM + tracking * (label.length - 1);
+}
+
+// Returns the label and type size that actually fit inside the bar: shrink
+// first, and only truncate once shrinking has hit its floor.
+export function fitLabel(
+  text: string,
+  width: number
+): { label: string; fontSize: number; truncated: boolean } {
+  const barHeight = barHeightFor(width);
+  const natural = Math.round(barHeight * 0.42);
+  const floor = Math.max(1, Math.round(natural * MIN_SCALE));
+  const maxWidth = width * SIDE_PADDING;
+  const upper = text.toUpperCase().trim();
+
+  let fontSize = natural;
+  while (fontSize > floor && labelWidth(upper, fontSize) > maxWidth) fontSize -= 1;
+  if (labelWidth(upper, fontSize) <= maxWidth) {
+    return { label: upper, fontSize, truncated: false };
+  }
+
+  // Still too wide at the smallest size we will set: trim to fit, ellipsis
+  // included in the measurement rather than added after it.
+  let label = upper;
+  while (label.length > 1 && labelWidth(`${label}…`, fontSize) > maxWidth) {
+    label = label.slice(0, -1);
+  }
+  return { label: `${label.trimEnd()}…`, fontSize, truncated: true };
+}
+
 // The overlay bar as SVG, sized to the target crop: full width, height and
 // type scale proportional to the crop's width so the bar reads the same at
 // every ratio. Archivo is the design's face; the SVG rasterizer falls back
 // to a bold sans where Archivo isn't installed on the host.
 export function overlaySvg(width: number, text: string): Buffer {
-  const barHeight = Math.round(width * 0.085);
-  const fontSize = Math.round(barHeight * 0.42);
-  const label = escapeXml(text.toUpperCase());
+  const barHeight = barHeightFor(width);
+  const { label, fontSize } = fitLabel(text, width);
   return Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${barHeight}">
       <rect width="${width}" height="${barHeight}" fill="${ACCENT}"/>
       <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle"
         font-family="Archivo, DejaVu Sans, sans-serif" font-weight="800"
         font-size="${fontSize}" letter-spacing="${Math.round(fontSize * 0.08)}"
-        fill="#ffffff">${label}</text>
+        fill="#ffffff">${escapeXml(label)}</text>
     </svg>`
   );
 }
@@ -66,7 +120,7 @@ export async function renderCrop(
   }
 
   const bar = overlaySvg(width, overlay.text);
-  const barHeight = Math.round(width * 0.085);
+  const barHeight = barHeightFor(width);
   return base
     .composite([{ input: bar, left: 0, top: overlayTop(overlay.pos, height, barHeight) }])
     .jpeg({ quality: 88 })
