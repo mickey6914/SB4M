@@ -20,6 +20,47 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
+// Sellers upload print-resolution art — 300 DPI files run to tens of megabytes,
+// and base64 adds a third on top. Sent whole, they exceeded the server's body
+// limit and every scene mockup failed with "Request body is too large" before
+// the scene code ran at all. Raising the limit would only move the failure to
+// memory on a small instance.
+//
+// So shrink here, where the pixels already are. The longest edge is capped at
+// a size comfortably above what any crop needs (the biggest is a 1080×1920
+// story), and PNG is preserved when the source is PNG — clipart carries
+// transparency, and flattening it to JPEG would put a white box behind a
+// cut-out product.
+const MAX_EDGE = 2048;
+
+async function downscale(file: File): Promise<string> {
+  const original = await readAsDataUrl(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('decode failed'));
+      el.src = original;
+    });
+    const longest = Math.max(img.naturalWidth, img.naturalHeight);
+    if (longest <= MAX_EDGE) return original;
+
+    const ratio = MAX_EDGE / longest;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.naturalWidth * ratio);
+    canvas.height = Math.round(img.naturalHeight * ratio);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return original;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const keepsAlpha = file.type === 'image/png' || file.type === 'image/webp';
+    return canvas.toDataURL(keepsAlpha ? 'image/png' : 'image/jpeg', 0.92);
+  } catch {
+    // A file the browser cannot decode is the server's problem to report, not
+    // something to drop silently here.
+    return original;
+  }
+}
+
 export default function Product() {
   const { run, dispatch } = useRun();
   const navigate = useNavigate();
@@ -56,7 +97,7 @@ export default function Product() {
       Array.from(files)
         .filter((f) => f.type.startsWith('image/'))
         .slice(0, 6)
-        .map(readAsDataUrl)
+        .map(downscale)
     );
     if (images.length) dispatch({ type: 'addUploads', uploads: images });
   };

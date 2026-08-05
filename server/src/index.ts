@@ -27,6 +27,22 @@ const app = Fastify({ logger: true, bodyLimit: 20_000_000 });
 // First hook wins, so the gate goes on before any route can answer.
 registerPasswordGate(app);
 
+// An oversized upload used to surface in the UI as Fastify's own "Request body
+// is too large", which says nothing about what to do. Say what happened and
+// what fixes it, in the shape the app's fetches already expect.
+app.setErrorHandler((err: unknown, _req, reply) => {
+  const e = err as { statusCode?: number; code?: string };
+  if (e?.statusCode === 413 || e?.code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+    return reply.code(413).send({
+      ok: false,
+      message:
+        'That image is too large to process — print-resolution files usually are. ' +
+        'Re-add it and the app will shrink it first, or upload a smaller export.',
+    });
+  }
+  reply.send(err);
+});
+
 app.get('/api/health', async () => ({ ok: true }));
 
 registerIngestRoutes(app);
