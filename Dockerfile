@@ -29,10 +29,18 @@ ENV NODE_ENV=production
 
 # Only what runs: the compiled server, the built frontend, and the modules they
 # need. The TypeScript sources and the design handoff stay out of the image.
+#
+# One node_modules, at the root. This is an npm workspaces repo, so
+# dependencies hoist there and server/node_modules is never created — copying
+# it fails the build outright. Node resolves upward from server/dist anyway.
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+
+# server/package.json is not optional decoration: it carries "type": "module",
+# and without it Node reads the compiled .js as CommonJS and the import
+# statements throw on startup.
 COPY --from=build /app/server/package.json ./server/package.json
-COPY --from=build /app/server/node_modules ./server/node_modules
+
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/web/dist ./web/dist
 
