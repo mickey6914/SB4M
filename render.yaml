@@ -1,0 +1,40 @@
+# Render Blueprint — the click-path for getting this a real URL.
+#
+# In Render: New → Blueprint → pick this repository. Render reads this file,
+# creates the service, and then asks for the values marked `sync: false` below.
+# Nothing secret lives in this file; it names the settings and Render prompts
+# for them.
+#
+# Plan note: `starter` rather than `free`. The free instance sleeps after
+# inactivity and wakes on the next request, which for this app means a run that
+# looks stalled, and it is memory-tight for image compositing. Change it to
+# `free` if you would rather trade that for the cost.
+
+services:
+  - type: web
+    name: pin-post-studio
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      # The password for the whole app. Render can generate one for you, or
+      # set your own. Without it the service refuses to start, on purpose —
+      # anyone reaching this URL can post to your social accounts.
+      - key: APP_PASSWORD
+        generateValue: true
+
+      # Scene backgrounds. Abacus is the verified working provider
+      # (DECISIONS.md §10); Google's image quota is zero on the current key.
+      - key: SCENE_PROVIDER
+        value: abacus
+      - key: ABACUS_API_KEY
+        sync: false
+
+      # AI copywriting.
+      - key: PIN_POST_ANTHROPIC_KEY
+        sync: false
+
+      # Pushing finished batches to Content360.
+      - key: CONTENT360_API_KEY
+        sync: false

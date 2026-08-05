@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.env
+**/.env
+design_handoff_pin_post_studio
+**/scripts/out
+*.log

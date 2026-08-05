@@ -5,54 +5,57 @@ Everything before that point is free and reversible — you can poke at it as mu
 as you like. Read to the end of "The safe stopping point" before you start and
 you can't get into trouble.
 
-## Before you start
+## Part 1 — Getting it online (one time, ~15 minutes)
 
-You need Node installed, the repo cloned, and keys in `server/.env`.
+This app has no website yet. Putting it on one is a one-time setup done
+entirely in a web browser — no terminal, no installing anything. At the end you
+get a normal web address you can open from a laptop or a phone.
 
-```
-git clone https://github.com/mickey6914/SB4M.git
-cd SB4M
-npm install
-cp server/.env.example server/.env
-```
+Everything the host needs is already in this repository: a `Dockerfile` that
+builds the app, and a `render.yaml` that tells the host what to ask you for.
 
-Open `server/.env` and fill in three keys. Every setting is explained in the
-file itself; the short version:
+### What you'll need open
 
-| Key | What it turns on |
-| --- | --- |
-| `PIN_POST_ANTHROPIC_KEY` | AI copywriting — titles, descriptions, keywords |
-| `ABACUS_API_KEY` | Scene backgrounds |
-| `CONTENT360_API_KEY` | The push (only needed at the very last step) |
+Four API keys, copied somewhere you can paste from:
 
-Also set `SCENE_PROVIDER=abacus`. Without it the app falls back to Google,
-whose image quota is zero on the current key, and you'll get an error instead
-of a backdrop.
+| Key | What it turns on | Where it comes from |
+| --- | --- | --- |
+| `ABACUS_API_KEY` | Scene backgrounds | abacus.ai → your profile → API keys |
+| `PIN_POST_ANTHROPIC_KEY` | AI copywriting | console.anthropic.com → API keys |
+| `CONTENT360_API_KEY` | Pushing posts out | your Content360 workspace settings |
+| `APP_PASSWORD` | The password for the app itself | you invent it, or let the host generate one |
 
-### Check the backgrounds work before you start
+### The steps
 
-One command, one real image, about five seconds:
+1. Go to **render.com** and sign in with GitHub.
+2. **New → Blueprint**, and pick the `mickey6914/SB4M` repository.
+3. Render finds `render.yaml` and shows a form asking for the keys above. Paste
+   each one in. `APP_PASSWORD` can be generated for you — **save it somewhere**,
+   it's how you'll get in.
+4. **Apply**. The first build takes a few minutes; it's compiling the app.
+5. When it finishes, Render shows a URL like
+   `https://pin-post-studio.onrender.com`. That's your app.
 
-```
-npm run check:scenes --workspace server
-```
+Open it. Your browser will ask for a username and password — **any username
+works**, the password is `APP_PASSWORD`.
 
-It prints which provider is active and writes a test backdrop to
-`server/scripts/out/`. If that fails, nothing downstream will work either, so
-fix it here rather than halfway through a run. It exits with a clear message
-naming the problem — a missing key, a misspelt `SCENE_PROVIDER`, a bad model
-name.
+### Why there's a password
 
-### Start the app
+The app can spend your Anthropic and Abacus credits and post to your real
+Pinterest, Facebook and Instagram accounts. A public address with no password
+means anyone who finds it can do those things. So the app **refuses to start**
+without `APP_PASSWORD` — that's deliberate, and if the host shows a startup
+error saying so, that's the reason.
 
-Two terminals:
+### If the build fails
 
-```
-npm run dev            # the app        → http://localhost:5173
-npm run dev:server     # the API        → http://localhost:3001
-```
+Render's Logs tab shows why in plain language. The most common cause is a
+missing key. Fix it under Environment and redeploy.
 
-Open http://localhost:5173.
+## Part 2 — Your first run
+
+From here on you're in the app itself, in your browser. Nothing below needs a
+terminal.
 
 ## Step 0 — Connections
 
@@ -180,12 +183,16 @@ Honest list of what will look broken, as of this writing:
 Most failures explain themselves in the screen where they happen, by design —
 a missing key says which key, a refused push says which post and why.
 
-The two commands worth knowing:
+| What you see | What it means |
+| --- | --- |
+| Browser keeps asking for the password | Wrong password. Check `APP_PASSWORD` in the host's Environment tab. |
+| "Setting not recognised" on Connections | `SCENE_PROVIDER` is misspelt. It should be `abacus`. |
+| "Built-in backdrops (no key yet)" | The host can't see `ABACUS_API_KEY`. |
+| The app won't start at all | Almost always a missing `APP_PASSWORD`. The host's Logs tab says so in a sentence. |
+| A run is slow to start after idle time | If you chose the free plan, the service sleeps and takes ~30s to wake. |
 
-```
-npm run check:scenes --workspace server   # are backgrounds actually working?
-npm test --workspace server               # does everything still pass? (65 tests)
-```
+Changing any key means editing it in the host's Environment tab and
+redeploying — never in a file.
 
 And the reasoning behind every product decision — why the hybrid image
 approach, how the Content360 API really works, what the Abacus verification

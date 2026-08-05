@@ -19,8 +19,20 @@ The complete design specification lives in
 
 Product decisions and their reasoning are recorded in [`DECISIONS.md`](DECISIONS.md).
 
-New here? [`FIRST_RUN.md`](FIRST_RUN.md) walks through the app end to end and
-marks the point where a run stops being reversible.
+New here? [`FIRST_RUN.md`](FIRST_RUN.md) covers getting the app online and then
+walks through it end to end, marking the point where a run stops being
+reversible.
+
+## Deploying it
+
+One service, one URL: the API server also serves the built frontend, so there
+is no separate frontend host and no base-URL setting anywhere. `Dockerfile`
+builds it; `render.yaml` is a Render blueprint that asks for the keys and
+nothing else. Any host that runs a container works the same way.
+
+`APP_PASSWORD` puts the whole app behind one password, and in production the
+server **refuses to start without it** — anyone reaching the URL could
+otherwise spend the API credits and post to the seller's real accounts.
 
 ## Running locally
 
