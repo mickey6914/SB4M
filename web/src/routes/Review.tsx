@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { usePush } from '../state/push';
 import { assetCount, CROPS, heroImages, SCENE_CATALOG, useRun, type Crop } from '../state/run';
@@ -24,43 +24,77 @@ const CROP_RATIOS: Record<Crop, string> = {
 
 type Rendered = Record<string, string>;
 
-// Hybrid scene mockup: the server generates an empty background for the
-// pin's scene and composites the seller's real product photo onto it. The
-// product is never sent through a generative model, so it cannot be altered.
-// Falls back to the plain product photo whenever a mockup isn't available.
-function useSceneMockup(product: string | undefined, scene: string, styleDirection: string) {
-  const [mockup, setMockup] = useState<string | null>(null);
-  const [provider, setProvider] = useState<string>('');
+// Hybrid scene mockups: the server generates an empty background per scene and
+// composites the seller's real product photo onto it. The product is never sent
+// through a generative model, so it cannot be altered.
+//
+// One request per DISTINCT scene, not per pin — a run reuses its three
+// backgrounds across all its pins, and the server caches by (scene, style,
+// product), so a 30-pin run still costs three images.
+//
+// They run one at a time on purpose. Firing them together made the small
+// instance compete with itself for memory while sharp was compositing, and a
+// failure there was invisible: the UI quietly showed the untouched photo under
+// a caption still claiming a scene. Failures are now surfaced, not swallowed.
+function useSceneMockups(
+  product: string | undefined,
+  scenes: string[],
+  styleDirection: string
+) {
+  const [mockups, setMockups] = useState<Record<string, string>>({});
+  const [failure, setFailure] = useState('');
+  const [pending, setPending] = useState(false);
+  const key = scenes.join('|');
+
   useEffect(() => {
-    if (!product || !scene) {
-      setMockup(null);
+    const wanted = key ? key.split('|').filter(Boolean) : [];
+    if (!product || wanted.length === 0) {
+      setMockups({});
+      setFailure('');
       return;
     }
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch('/api/scenes/mockup', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ scene, styleDirection, product }),
-        });
-        const json = await res.json();
+      setPending(true);
+      setFailure('');
+      const found: Record<string, string> = {};
+      let firstError = '';
+      for (const scene of wanted) {
         if (cancelled) return;
-        if (json.ok && json.image) {
-          setMockup(json.image);
-          setProvider(json.provider === 'procedural' ? '' : json.provider);
-        } else {
-          setMockup(null);
+        try {
+          const res = await fetch('/api/scenes/mockup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ scene, styleDirection, product }),
+          });
+          const json = await res.json();
+          if (json.ok && json.image) found[scene] = json.image;
+          else if (!firstError) firstError = json.message || `The server refused the "${scene}" scene.`;
+        } catch {
+          if (!firstError) firstError = 'Could not reach the server to build the scene mockups.';
         }
-      } catch {
-        if (!cancelled) setMockup(null);
+        if (cancelled) return;
+        // Publish each one as it lands rather than making the seller wait for
+        // the whole set.
+        setMockups({ ...found });
       }
+      if (cancelled) return;
+      const missing = wanted.filter((s) => !found[s]);
+      setFailure(
+        missing.length
+          ? `${missing.length} of ${wanted.length} scene backgrounds could not be generated${
+              firstError ? ` — ${firstError}` : '.'
+            } Showing your original photo for those.`
+          : ''
+      );
+      setPending(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [product, scene, styleDirection]);
-  return { mockup, provider };
+  }, [product, key, styleDirection]);
+
+  return { mockups, failure, pending };
 }
 
 // Fetch the four rendered crops whenever the source or overlay changes,
@@ -94,7 +128,17 @@ function useRenderedCrops(src: string | undefined, overlay: string, pos: Overlay
   return images;
 }
 
-function CropPreview({ src, rendered }: { src?: string; rendered: Rendered | null }) {
+function CropPreview({
+  src,
+  rendered,
+  hasScene,
+}: {
+  src?: string;
+  rendered: Rendered | null;
+  // Whether what is on screen really is a scene mockup. The caption used to
+  // assert one unconditionally, including when generating it had failed.
+  hasScene: boolean;
+}) {
   const { review } = useReview();
   const pin = review.pins[review.pin - 1];
   return (
@@ -108,7 +152,10 @@ function CropPreview({ src, rendered }: { src?: string; rendered: Rendered | nul
         </div>
         <div className="crop-panel-note">
           Overlay sits at the {review.overlayPos} of every crop — re-placed per ratio, never
-          sliced. Scene: {pin.scene} · your product photo is composited unaltered.
+          sliced.{' '}
+          {hasScene
+            ? `Scene: ${pin.scene} · your product photo is composited unaltered.`
+            : 'No scene background — showing your original photo unaltered.'}
         </div>
       </div>
       <div className="crop-panel-body">
@@ -141,10 +188,16 @@ function PinGrid({
   src,
   rendered,
   networks,
+  mockups,
+  product,
 }: {
   src?: string;
   rendered: Rendered | null;
   networks: string[];
+  // Per-scene backgrounds, so a card can show its own rather than the
+  // selected pin's, and the raw photo to fall back to when a scene failed.
+  mockups: Record<string, string>;
+  product?: string;
 }) {
   const { review, dispatch } = useReview();
   const hidden = review.pins.length - review.shown;
@@ -170,7 +223,13 @@ function PinGrid({
             >
               {pin.flagged && <span className="pin-flag">Keyword flagged</span>}
               <div className="pin-media" style={{ aspectRatio: CROP_RATIOS[review.crop] }}>
-                {cardSrc && <img src={cardSrc} alt="" className="crop-img" />}
+                {/* Each card shows ITS OWN scene. It used to show the selected
+                    pin's render, so every card in the grid was the same picture
+                    no matter which scenes the run had chosen. */}
+                {(() => {
+                  const own = review.pin === n ? cardSrc : mockups[pin.scene] ?? product;
+                  return own ? <img src={own} alt="" className="crop-img" /> : null;
+                })()}
               </div>
               <div className="pin-title">{pin.title}</div>
               <div className="pin-chips">
@@ -349,7 +408,18 @@ function ReviewBody({ runId }: { runId: string }) {
   const [inlinePushError, setInlinePushError] = useState('');
   const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
   const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
-  const { mockup } = useSceneMockup(product, selectedScene, run.styleDirection);
+  // Distinct scenes, in the order the pins use them.
+  const sceneList = useMemo(() => {
+    const seen: string[] = [];
+    for (const p of review.pins) if (p.scene && !seen.includes(p.scene)) seen.push(p.scene);
+    return seen;
+  }, [review.pins]);
+  const { mockups, failure: sceneFailure } = useSceneMockups(
+    product,
+    sceneList,
+    run.styleDirection
+  );
+  const mockup = selectedScene ? mockups[selectedScene] : undefined;
   // Crops render from the scene mockup when there is one, else the raw photo.
   const src = mockup ?? product;
   const rendered = useRenderedCrops(src, review.overlay, review.overlayPos);
@@ -517,6 +587,10 @@ function ReviewBody({ runId }: { runId: string }) {
       {inlinePushError && (
         <div className="push-error-bar">{inlinePushError}</div>
       )}
+      {/* A scene that failed to generate used to be invisible: the pin quietly
+          showed the untouched photo. Say it plainly instead — the pins are
+          still usable, they just are not the mockups that were asked for. */}
+      {sceneFailure && <div className="push-error-bar">{sceneFailure}</div>}
       {/* Every run reaches Pinterest, and Pinterest will not publish a pin
           without a board. The push is still allowed — Content360 accepts the
           post and holds it — but saying so here beats a silent failure. */}
@@ -531,8 +605,8 @@ function ReviewBody({ runId }: { runId: string }) {
       )}
       <div className="review-body">
         <div className="review-left">
-          <CropPreview src={src} rendered={rendered} />
-          <PinGrid src={src} rendered={rendered} networks={networks} />
+          <CropPreview src={src} rendered={rendered} hasScene={Boolean(mockup)} />
+          <PinGrid src={src} rendered={rendered} networks={networks} mockups={mockups} product={product} />
         </div>
         <Inspector />
       </div>
