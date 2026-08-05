@@ -21,7 +21,8 @@ Product decisions and their reasoning are recorded in [`DECISIONS.md`](DECISIONS
 
 New here? [`FIRST_RUN.md`](FIRST_RUN.md) covers getting the app online and then
 walks through it end to end, marking the point where a run stops being
-reversible.
+reversible. [`OPERATING_GUIDE.md`](OPERATING_GUIDE.md) is the reference for
+every screen once you are running it.
 
 ## Deploying it
 

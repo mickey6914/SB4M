@@ -203,6 +203,12 @@ html, body, #root {
   background: var(--color-accent);
 }
 
+/* Not connected, or not asked yet — the dot should not read as a green light
+   while the answer is still unknown. */
+.topbar-status-dot.is-off {
+  background: var(--color-divider);
+}
+
 /* — run wizard — */
 
 .steprail {
