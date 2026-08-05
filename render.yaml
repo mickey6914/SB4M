@@ -5,17 +5,19 @@
 # Nothing secret lives in this file; it names the settings and Render prompts
 # for them.
 #
-# Plan note: `starter` rather than `free`. The free instance sleeps after
-# inactivity and wakes on the next request, which for this app means a run that
-# looks stalled, and it is memory-tight for image compositing. Change it to
-# `free` if you would rather trade that for the cost.
+# Plan note: `free` needs no card, which is the right default for finding out
+# whether you want this at all. Two things it costs you: the instance sleeps
+# after ~15 minutes idle and takes 30–60s to wake on the next request, and it
+# has 512MB of memory, which is workable but not generous for compositing
+# 1024×1024 images. If either bites, change `free` to `starter` (~$7/month,
+# always warm, more memory) and redeploy — it is this one word.
 
 services:
   - type: web
     name: pin-post-studio
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     healthCheckPath: /api/health
     envVars:
       # The password for the whole app. Render can generate one for you, or
