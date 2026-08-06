@@ -132,7 +132,14 @@ export async function renderCrop(
   const base = sharp(source)
     .rotate() // respect EXIF orientation
     .flatten({ background: '#ffffff' }) // transparent PNGs land on white, not black
-    .resize(width, height, { fit: 'cover', position: 'attention' });
+    // Centre, not sharp's 'attention'. Attention keeps whatever region scores
+    // highest on entropy and saturation, which in a lifestyle mockup is a face
+    // or an animal — so a 2:3 mug shot cropped to 1:1 kept the cat and the dog
+    // and cut the mug in half. Both paths into this renderer put the product in
+    // the middle on purpose: the templates ask the model to centre it, and the
+    // compositor centres it directly. Cropping to the centre honours that
+    // instead of second-guessing it.
+    .resize(width, height, { fit: 'cover', position: 'centre' });
 
   if (!overlay || !overlay.text.trim()) {
     return base.jpeg({ quality: 88 }).toBuffer();

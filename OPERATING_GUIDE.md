@@ -94,7 +94,7 @@ Ten templates, each applying your artwork to a product:
 | Template | What it produces |
 | --- | --- |
 | T-shirt · Sweatshirt | Worn outdoors, autumn park, friends |
-| Coffee cup | Kitchen table lifestyle scene, morning light |
+| Coffee cup | Held close at a kitchen table, morning light, pets behind |
 | Pillow | On a linen sofa in a sunlit room |
 | Invitation card | Standing on a table with a kraft envelope |
 | Wall art | Framed on a beige gallery wall |
@@ -105,6 +105,12 @@ Ten templates, each applying your artwork to a product:
 
 Three are generated per run and reused across its pins, so a 30-pin run costs
 the same in images as a 3-pin one. **Surprise me** picks three at random.
+
+Every template generates at **2:3**, Pinterest's native pin. That is not
+cosmetic: all four crops are portrait or square, so a landscape mockup loses
+most of its width to every one of them. Each prompt also asks for the product
+close, centred and with margin on all sides, so re-cropping trims background
+rather than the product.
 
 Your artwork is sent to the image model, which applies it to the product. That
 is the opposite of how physical-product staging works in this app, and the
