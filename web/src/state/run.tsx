@@ -36,15 +36,22 @@ export type RunState = {
   crops: Record<Crop, boolean>;
 };
 
+// The shop's own mockup templates. These are not backdrops to stand a product
+// on — each one applies the artwork to a product, and the prompt that does it
+// lives server-side in scenes/templates.ts. Labels must match those exactly:
+// the server looks the template up by label, and anything it does not
+// recognise falls through to the older empty-backdrop path.
 export const SCENE_CATALOG = [
-  'Cozy home setting',
-  'Desk flat lay',
-  'Gift box scene',
-  'Digital screen mockup',
-  'Linen table',
-  'Window light',
-  'Studio shelf',
-  'Holiday wrap',
+  'T-shirt',
+  'Sweatshirt',
+  'Coffee cup',
+  'Pillow',
+  'Invitation card',
+  'Wall art',
+  'TV wall art',
+  'Tote bag',
+  'Sticker sheet',
+  'Planner stickers',
 ];
 
 const initial: RunState = {

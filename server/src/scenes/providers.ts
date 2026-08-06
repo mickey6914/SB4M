@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { loadImageSource } from '../shared/load-image.js';
+import type { MockupTemplate } from './templates.js';
 
 // Scene-background providers. The hybrid rule: a provider only ever
 // generates an EMPTY background. The seller's product photograph is
@@ -240,6 +241,79 @@ async function generateAbacus(req: SceneRequest): Promise<SceneResult> {
   } catch {
     return { ok: false, provider: 'abacus', message: 'Could not reach Abacus image generation.' };
   }
+}
+
+// — Mockup templates: the artwork goes IN —
+//
+// The other direction entirely from generateAbacus() above. There, the model
+// draws an empty room and our renderer composites the product on top. Here the
+// artwork is sent as an input image and the model applies it to a product, the
+// way the seller's own prompts do. Verified against the live API: a test design
+// came back preserved on a t-shirt with correct folds and perspective.
+//
+// The honest cost of it is in DECISIONS.md §11 — a generative model touching
+// the artwork can alter it, which is exactly what §7 forbids for photographs of
+// physical goods. For flat digital art in an illustrative mockup it is the
+// trade the seller already makes by hand.
+
+export type MockupResult =
+  | { ok: true; image: Buffer; model: string }
+  | { ok: false; message: string };
+
+export async function generateMockupFromArt(
+  art: Buffer,
+  artMime: string,
+  template: MockupTemplate
+): Promise<MockupResult> {
+  const key = process.env.ABACUS_API_KEY;
+  if (!key) {
+    return { ok: false, message: 'No Abacus API key — set ABACUS_API_KEY to build mockups.' };
+  }
+  const model = template.model ?? abacusModel();
+  let json: any;
+  try {
+    const res = await fetch(`${abacusBaseUrl()}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        modalities: ['image', 'text'],
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: template.prompt },
+              {
+                type: 'image_url',
+                image_url: { url: `data:${artMime};base64,${art.toString('base64')}` },
+              },
+            ],
+          },
+        ],
+        image_config: { aspect_ratio: template.aspectRatio, num_images: 1 },
+      }),
+      // Applying art to a product takes appreciably longer than drawing an
+      // empty backdrop — measured around 17s, and the pro model longer still.
+      signal: AbortSignal.timeout(240_000),
+    });
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 200);
+      return { ok: false, message: `Abacus rejected the mockup (${res.status}). ${detail}`.trim() };
+    }
+    json = await res.json();
+  } catch {
+    return { ok: false, message: 'Could not reach Abacus to build the mockup.' };
+  }
+
+  const source = imageFromAbacusResponse(json);
+  if (!source) {
+    return { ok: false, message: 'Abacus returned no mockup image.' };
+  }
+  const image = await loadImageSource(source);
+  if (!image) {
+    return { ok: false, message: 'Abacus returned a mockup that could not be read back.' };
+  }
+  return { ok: true, image, model };
 }
 
 // — Google (Imagen / Gemini image, a.k.a. Nano Banana) —

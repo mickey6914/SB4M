@@ -22,10 +22,11 @@ The loop is always the same five moves:
 
 Two rules hold everywhere in it:
 
-- **Your product photo is never redrawn.** Image models only ever draw an
-  *empty* background. Your real photograph is composited on top afterwards by
-  the app's own renderer, so its pixels cannot be altered. This is why mockups
-  look like photographs and still show your actual product.
+- **Two mockup paths, and the app picks by template.** The ten named templates
+  send your artwork to the model, which applies it to a t-shirt, mug or frame —
+  this is what your shop uses. Any other scene name takes the older path, where
+  the model draws only an empty backdrop and your photo is composited on top
+  untouched. `DECISIONS.md` §7 and §11 cover why both exist.
 - **Nothing publishes until you press one specific button.** Everything before
   `Push to Content360` is local and reversible.
 
@@ -86,15 +87,34 @@ Same screen, three more settings:
 | 4:5 | Instagram feed *(the Instagram default)* |
 | 9:16 | Story / reel *(off by default)* |
 
-### New run — step 4: Choose three scenes
+### New run — step 4: Choose three mockup templates
 
-Three backgrounds are generated per run and reused across all its pins — which
-is why a 30-pin run costs the same in images as a 3-pin one. **Surprise me**
-picks three at random.
+Ten templates, each applying your artwork to a product:
+
+| Template | What it produces |
+| --- | --- |
+| T-shirt · Sweatshirt | Worn outdoors, autumn park, friends |
+| Coffee cup | Kitchen table lifestyle scene, morning light |
+| Pillow | On a linen sofa in a sunlit room |
+| Invitation card | Standing on a table with a kraft envelope |
+| Wall art | Framed on a beige gallery wall |
+| TV wall art | On a smart TV in a minimalist living room |
+| Tote bag | Carried at an autumn farmers market |
+| Sticker sheet | Die-cut sheet, overhead, charcoal background |
+| Planner stickers | Peeled and stuck into an open planner |
+
+Three are generated per run and reused across its pins, so a 30-pin run costs
+the same in images as a 3-pin one. **Surprise me** picks three at random.
+
+Your artwork is sent to the image model, which applies it to the product. That
+is the opposite of how physical-product staging works in this app, and the
+reasoning is in `DECISIONS.md` §11 — worth reading once. The practical
+consequence: check that intricate line work survives, because a model touching
+the art *can* alter it.
 
 ### New run — step 5: Progress
 
-The run executes: copy written, backgrounds generated, your photo composited,
+The run executes: copy written, mockups generated, your artwork applied,
 every crop rendered. Watch or walk away.
 
 ### Review

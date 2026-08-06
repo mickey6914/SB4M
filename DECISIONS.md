@@ -383,3 +383,71 @@ The wider probe of what else the key reaches — the Anthropic-compatible text
 gateway, the credit units, the absent balance endpoint — is its own note; the
 short version is that copywriting *could* move here at the same per-token price,
 and was deliberately left on Anthropic.
+
+## 11. Mockup templates: the artwork goes into the model, reversing §7
+
+Decided 2026-08-06, from the seller's own working prompts.
+
+§7 ruled out handing the product to a generative model: *"handing the product
+photo to a generative model means it is redrawn, and no prompt makes that
+guarantee-able."* That reasoning holds — for a **photograph of a physical
+object**, where the buyer receives the object in the picture.
+
+This shop does not sell those. It sells **digital art** — clipart bundles,
+printables, PNG files. The mockup's job is to show what the art could look like
+on a t-shirt, a mug, a framed print. The buyer receives files, not the shirt, so
+an illustrative mockup is not a promise about a physical good, and the seller
+has been producing exactly these by hand for months.
+
+So the rule now has two halves, and which applies depends on the product:
+
+| Product | Approach | Why |
+| --- | --- | --- |
+| A physical object being sold | §7 hybrid: empty backdrop, photo composited on top by our renderer | Its photograph must not be redrawn |
+| Digital art being applied to merchandise | This: artwork sent to the model as an input image | Applying art to a product is the whole point |
+
+### What was built
+
+`scenes/templates.ts` holds ten templates, each carrying the seller's own prompt
+verbatim where one existed, the aspect ratio their originals used, and
+optionally a model. `generateMockupFromArt()` posts the artwork as an
+`image_url` alongside the prompt; the reply is a finished mockup with nothing
+for the compositor to do.
+
+| Template | Ratio | Model |
+| --- | --- | --- |
+| T-shirt, Sweatshirt, Pillow, Invitation card, Wall art, Tote bag, Sticker sheet, Planner stickers | 4:3 | default |
+| Coffee cup | 3:4 | nano_banana_pro |
+| TV wall art | 16:9 | nano_banana_pro |
+
+The pro model is reserved for the two where the *room* has to look designed
+rather than merely plausible; the rest are fine on the cheap fast one.
+
+`/api/scenes/mockup` routes by label: a name in the template list takes this
+path, anything else falls through to the §7 hybrid, which is untouched and
+still correct for a physical product. Prompts stay server-side so the picker
+cannot drift out of step with them.
+
+### Measured, not assumed
+
+Verified against the live API with a deliberately garish test design — magenta
+disc, yellow ring, green triangle — chosen because any drift would be obvious:
+
+- **Sweatshirt** (seller's prompt verbatim): artwork preserved exactly, correct
+  folds and perspective, 17s.
+- **TV wall art**: 1376×768, art on the screen in a minimalist room, 22s on the
+  pro model.
+- **Tote bag**: 1200×896, printed on canvas with fabric texture, 5s.
+
+### The cost, in both senses
+
+About 6,750 compute points per mockup against 3,362 for an empty backdrop —
+roughly double, and the pro model more. Still three per run.
+
+The real cost is the one §7 named: a generative model touching the artwork *can
+alter it*. Simple shapes came back exact; intricate botanical line work may
+drift, and no prompt makes it guarantee-able. That is a watch item on the first
+real run, not a solved problem. If drift shows up on detailed work, the escape
+hatch is per-template: keep this path for apparel and interiors, and composite
+flat art into a straight-on frame ourselves for the ones where fidelity matters
+most.
