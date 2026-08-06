@@ -10,6 +10,8 @@ import {
   fitLabel,
   overlaySvg,
   type CropRatio,
+  NATURAL_TYPE_FRACTION,
+  minTypeSizeFor,
 } from '../src/crops/render.js';
 
 // A deterministic source: a 1600x1200 two-tone test card.
@@ -104,7 +106,7 @@ test('a long title is shrunk to fit rather than clipped', () => {
 
 test('a short title keeps its natural size — shrinking is not applied blindly', () => {
   const width = CROP_SIZES['2:3'].width;
-  const natural = Math.round(barHeightFor(width) * 0.42);
+  const natural = Math.round(barHeightFor(width) * NATURAL_TYPE_FRACTION);
   const { label, fontSize, truncated } = fitLabel('Linen Throw', width);
   assert.equal(fontSize, natural);
   assert.equal(label, 'LINEN THROW');
@@ -119,7 +121,7 @@ test('a title too long to shrink is truncated, and the ellipsis fits too', () =>
   assert.ok(label.endsWith('…'), 'truncation is visible, not silent');
   assert.ok(estimatedWidth(label, fontSize) <= width, 'the truncated label fits');
   // Floor is a readability limit, not an excuse to keep shrinking.
-  assert.ok(fontSize >= Math.round(barHeightFor(width) * 0.42 * 0.62) - 1);
+  assert.ok(fontSize >= minTypeSizeFor(width));
 });
 
 test('the rendered bar carries the fitted size, not the natural one', async () => {

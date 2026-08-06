@@ -25,8 +25,14 @@ function escapeXml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+// Bar height as a fraction of the crop's width, so the band reads the same at
+// every ratio. Raised from 0.085 after the first real run: the old bar was
+// legible at full size but vanished in a Pinterest feed, which is where pins
+// are actually seen — a brand mark nobody can read is not doing its job.
+const BAR_FRACTION = 0.115;
+
 export function barHeightFor(width: number): number {
-  return Math.round(width * 0.085);
+  return Math.round(width * BAR_FRACTION);
 }
 
 // SVG <text> neither wraps nor shrinks: a label wider than the bar simply
@@ -41,10 +47,23 @@ export function barHeightFor(width: number): number {
 // erring wide costs a pixel of type, erring narrow costs a clipped word.
 const ADVANCE_EM = 0.68;
 
-// Type is allowed to shrink to this fraction of its natural size. Past that a
-// title is too long to set on one line at any readable size, and truncating
-// reads better than a caption in mouse type.
-const MIN_SCALE = 0.62;
+// How large the type is when nothing forces it smaller, as a fraction of the
+// bar. Exported so tests assert against the intent rather than re-deriving a
+// magic number that then has to be changed in two places.
+export const NATURAL_TYPE_FRACTION = 0.46;
+
+// The smallest type we will set, as a fraction of the crop's WIDTH rather than
+// of the natural size. This is a readability limit and readability does not
+// scale with the bar: when the bar grew, a floor defined against the natural
+// size rose with it and started truncating titles that had previously fitted.
+// Anchoring it to the crop keeps the floor where it was — about 22px on a
+// 1000px pin — so a bigger bar buys larger brand text without costing long
+// titles their words.
+const MIN_TYPE_FRACTION = 0.022;
+
+export function minTypeSizeFor(width: number): number {
+  return Math.max(1, Math.round(width * MIN_TYPE_FRACTION));
+}
 const SIDE_PADDING = 0.94;
 
 function labelWidth(label: string, fontSize: number): number {
@@ -60,8 +79,8 @@ export function fitLabel(
   width: number
 ): { label: string; fontSize: number; truncated: boolean } {
   const barHeight = barHeightFor(width);
-  const natural = Math.round(barHeight * 0.42);
-  const floor = Math.max(1, Math.round(natural * MIN_SCALE));
+  const natural = Math.round(barHeight * NATURAL_TYPE_FRACTION);
+  const floor = minTypeSizeFor(width);
   const maxWidth = width * SIDE_PADDING;
   const upper = text.toUpperCase().trim();
 
