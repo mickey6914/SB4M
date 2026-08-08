@@ -8,6 +8,23 @@ const VOLUMES: { value: Vol; label: string; timing: string }[] = [
   { value: 30, label: 'One month', timing: '~1 m 50 s' },
 ];
 
+// Measured, not guessed: Abacus bills image work in compute points, and the
+// seller's own credit log put 20 points to the credit — about 168 credits for
+// a standard mockup and 337 on the pro model. Rounded to 170 here because the
+// number is a guide for a decision, not an invoice.
+const CREDITS_PER_MOCKUP = 170;
+const SECONDS_PER_MOCKUP = 8;
+
+function mockupCredits(images: number): string {
+  return (images * CREDITS_PER_MOCKUP).toLocaleString();
+}
+
+function mockupMinutes(images: number): string {
+  const secs = images * SECONDS_PER_MOCKUP;
+  if (secs < 90) return `${secs} seconds`;
+  return `${Math.round(secs / 60)} minutes`;
+}
+
 const SUGGESTIONS = ['No people', 'Minimalist white', 'Fall colours', 'Bright & airy', 'Holiday'];
 
 const FAN_OUT: { value: FanOut; label: string }[] = [
@@ -63,6 +80,35 @@ export default function Volume() {
                 <div className="vol-timing">{timing}</div>
               </div>
             ))}
+          </div>
+          <div style={{ marginTop: 32, maxWidth: 700 }}>
+            <div className="rail-kicker" style={{ marginBottom: 10 }}>
+              Mockup images
+            </div>
+            <label className="choice-row">
+              <input
+                type="checkbox"
+                checked={run.distinctPerPin}
+                onChange={(e) => dispatch({ type: 'setDistinctPerPin', on: e.target.checked })}
+              />
+              A different mockup for every pin
+            </label>
+            <div className="rail-note" style={{ marginTop: 6 }}>
+              {run.distinctPerPin ? (
+                <>
+                  {run.volume} images, about {mockupCredits(run.volume)} Abacus credits, and roughly{' '}
+                  {mockupMinutes(run.volume)} to generate. Every pin is a different picture.
+                </>
+              ) : (
+                <>
+                  {Math.max(1, run.scenes.length)} image
+                  {run.scenes.length === 1 ? '' : 's'}, about{' '}
+                  {mockupCredits(Math.max(1, run.scenes.length))} credits — but pins sharing a
+                  template get the <strong>identical</strong> picture, and Pinterest treats repeated
+                  images as spam. Fine for a quick test, risky for a month's schedule.
+                </>
+              )}
+            </div>
           </div>
           <div style={{ marginTop: 32, maxWidth: 700 }}>
             <div className="rail-kicker" style={{ marginBottom: 10 }}>

@@ -14,10 +14,18 @@ type MockupBody = {
   styleDirection?: string;
   product?: string; // http(s) URL or data: URL
   scale?: number;
+  // Distinguishes one pin's mockup from another's when they share a template.
+  // It changes nothing about the prompt — it only keeps two requests from
+  // collapsing onto the same cache entry, so each pin gets its own generation
+  // instead of a byte-identical copy. See DECISIONS.md §12.
+  variant?: string | number;
 };
 
 const cache = new Map<string, { image: string; provider: string; model: string }>();
-const CACHE_MAX = 30;
+// Big enough to hold a full 30-pin run's worth of distinct mockups without
+// evicting the ones it generated ten seconds ago. Each entry is a JPEG data
+// URL of a few hundred KB, so this is tens of MB at worst.
+const CACHE_MAX = 40;
 
 export function registerSceneRoutes(app: FastifyInstance) {
   app.get('/api/scenes/status', async () => ({ ok: true, ...providerStatus() }));
@@ -42,6 +50,7 @@ export function registerSceneRoutes(app: FastifyInstance) {
       product.slice(0, 200),
       product.length,
       req.body?.scale ?? null,
+      req.body?.variant ?? null,
     ]);
     const hit = cache.get(key);
     if (hit) return reply.send({ ok: true, ...hit, cached: true });

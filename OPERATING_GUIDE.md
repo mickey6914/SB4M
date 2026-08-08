@@ -77,6 +77,16 @@ Same screen, three more settings:
 - **Style direction** — free text steering the look: "warm fall colours, no
   people". Quick-add suggestions: No people, Minimalist white, Fall colours,
   Bright & airy, Holiday.
+- **A different mockup for every pin** — on by default. Off, pins sharing a
+  template get the *identical* image, which Pinterest treats as spam. The
+  screen shows the credit and time cost of whichever you pick:
+
+  | Setting | 30-pin run | Runs/month on 20K credits |
+  | --- | --- | --- |
+  | On (default) | ~5,000 credits, a few minutes | ~4 |
+  | Off | ~500 credits, seconds | ~40 |
+
+  Off is fine for a quick test. On is what you want for a real schedule.
 - **Fan-out** — Pinterest only, Pinterest + Facebook, or all three networks.
 - **Crops** — which sizes to render:
 
@@ -104,8 +114,10 @@ Ten templates, each applying your artwork to a product:
 | Sticker sheet | Die-cut sheet, overhead, charcoal background |
 | Planner stickers | Peeled and stuck into an open planner |
 
-Three are generated per run and reused across its pins, so a 30-pin run costs
-the same in images as a 3-pin one. **Surprise me** picks three at random.
+**Surprise me** picks three at random.
+
+How many images actually get generated is your choice, on the previous step —
+see "A different mockup for every pin" below.
 
 Every template generates at **2:3**, Pinterest's native pin. That is not
 cosmetic: all four crops are portrait or square, so a landscape mockup loses

@@ -451,3 +451,56 @@ real run, not a solved problem. If drift shows up on detailed work, the escape
 hatch is per-template: keep this path for apparel and interiors, and composite
 flat art into a straight-on frame ourselves for the ones where fidelity matters
 most.
+
+
+## 12. One mockup per pin, or one per template — the seller chooses
+
+Found 2026-08-07, on the second round of real runs: "the wall art images are
+all the same design."
+
+They were. Pins cycle through the run's chosen templates
+(`sceneNames[i % sceneNames.length]`) and the mockup is cached per template, so
+two pins on the same template got a **byte-identical** image. Two templates and
+three pins meant pins 1 and 3 were the same file. At the intended scale — 30
+pins, 3 templates — that is ten copies of each image, and Pinterest treats
+repeated images as spam. It had been true since the beginning; it only became
+visible once the mockups themselves stopped being broken for other reasons.
+
+### Why a toggle rather than a fix
+
+Because the cheap behaviour is right for a quick test and wrong for a month's
+schedule, and the difference is real money:
+
+| Setting | 30-pin run | Runs per month on 20K credits |
+| --- | --- | --- |
+| A different mockup for every pin *(default)* | ~5,000 credits | ~4 |
+| One per template | ~500 credits | ~40 |
+
+Default is distinct, because the failure mode of the cheap option is an account
+problem rather than a wasted afternoon. The wizard shows the credit and time
+cost of whichever is selected, so the choice is made with the number in view
+rather than discovered afterwards.
+
+### The credit arithmetic, which is now measured
+
+The seller's Abacus credit log settles what §10 could not. Two calls on Aug 4
+billed 6,725 and 3,362 compute points; the same day's Media Generation line
+reads 504.5 credits. 10,086 / 504.5 = **20 compute points per credit**, exact.
+So a standard mockup is ~168 credits and a pro one ~337. `RouteLLM API` reads 0
+every day since, confirming copywriting goes to Anthropic and not through here.
+
+### How it works
+
+A mockup request carries a `variant`, which does nothing but participate in the
+server's cache key. Same template, different variant gives a separate
+generation; the same variant twice gives a cache hit and spends nothing. The
+prompt is untouched — these models are stochastic, so a second call is simply a
+different picture.
+
+Verified against the live API: variants 1, 2 and none returned three different
+images with `cached: false`, and repeating variant 1 returned `cached: true`.
+
+Generation is serial and each image is published as it lands, because a 30-pin
+distinct run is minutes of work and a blank screen for that long reads as a
+hang. Review shows "Generating mockups — N of M done" while it runs, and pins
+still waiting show the original artwork rather than a false one.

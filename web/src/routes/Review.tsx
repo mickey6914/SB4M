@@ -36,65 +36,86 @@ type Rendered = Record<string, string>;
 // instance compete with itself for memory while sharp was compositing, and a
 // failure there was invisible: the UI quietly showed the untouched photo under
 // a caption still claiming a scene. Failures are now surfaced, not swallowed.
+// A job is one mockup to generate: which template, and the key it is stored
+// under. With one image per template the key IS the template, so every pin on
+// that template shares it. With one per pin the key carries the pin number,
+// which also becomes the `variant` the server folds into its cache key — the
+// only thing stopping two pins collapsing onto one generation.
+type MockupJob = { key: string; scene: string; variant?: string };
+
 function useSceneMockups(
   product: string | undefined,
-  scenes: string[],
+  jobs: MockupJob[],
   styleDirection: string
 ) {
   const [mockups, setMockups] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState('');
-  const [pending, setPending] = useState(false);
-  const key = scenes.join('|');
+  const [done, setDone] = useState(0);
+  const signature = jobs.map((j) => `${j.key}\u0000${j.scene}\u0000${j.variant ?? ''}`).join('|');
 
   useEffect(() => {
-    const wanted = key ? key.split('|').filter(Boolean) : [];
+    const wanted: MockupJob[] = signature
+      ? signature.split('|').map((row) => {
+          const [key, scene, variant] = row.split('\u0000');
+          return { key, scene, variant: variant || undefined };
+        })
+      : [];
     if (!product || wanted.length === 0) {
       setMockups({});
       setFailure('');
+      setDone(0);
       return;
     }
     let cancelled = false;
     (async () => {
-      setPending(true);
       setFailure('');
+      setDone(0);
       const found: Record<string, string> = {};
       let firstError = '';
-      for (const scene of wanted) {
+      for (const job of wanted) {
         if (cancelled) return;
         try {
           const res = await fetch('/api/scenes/mockup', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ scene, styleDirection, product }),
+            body: JSON.stringify({
+              scene: job.scene,
+              styleDirection,
+              product,
+              variant: job.variant,
+            }),
           });
           const json = await res.json();
-          if (json.ok && json.image) found[scene] = json.image;
-          else if (!firstError) firstError = json.message || `The server refused the "${scene}" scene.`;
+          if (json.ok && json.image) found[job.key] = json.image;
+          else if (!firstError)
+            firstError = json.message || `The server refused the "${job.scene}" mockup.`;
         } catch {
-          if (!firstError) firstError = 'Could not reach the server to build the scene mockups.';
+          if (!firstError) firstError = 'Could not reach the server to build the mockups.';
         }
         if (cancelled) return;
         // Publish each one as it lands rather than making the seller wait for
-        // the whole set.
+        // the whole set — on a 30-pin run that is minutes of staring at nothing.
         setMockups({ ...found });
+        setDone((n) => n + 1);
       }
       if (cancelled) return;
-      const missing = wanted.filter((s) => !found[s]);
+      const missing = wanted.filter((j) => !found[j.key]);
       setFailure(
         missing.length
-          ? `${missing.length} of ${wanted.length} scene backgrounds could not be generated${
+          ? `${missing.length} of ${wanted.length} mockup${
+              wanted.length > 1 ? 's' : ''
+            } could not be generated${
               firstError ? ` — ${firstError}` : '.'
-            } Showing your original photo for those.`
+            } Showing your original artwork for those.`
           : ''
       );
-      setPending(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [product, key, styleDirection]);
+  }, [product, signature, styleDirection]);
 
-  return { mockups, failure, pending };
+  return { mockups, failure, done, total: jobs.length };
 }
 
 // Fetch the four rendered crops whenever the source or overlay changes,
@@ -190,6 +211,7 @@ function PinGrid({
   networks,
   mockups,
   product,
+  mockupKey,
 }: {
   src?: string;
   rendered: Rendered | null;
@@ -198,6 +220,9 @@ function PinGrid({
   // selected pin's, and the raw photo to fall back to when a scene failed.
   mockups: Record<string, string>;
   product?: string;
+  // How a pin finds its own image. Depends on whether the run generates one
+  // mockup per template or one per pin, so it is passed in rather than guessed.
+  mockupKey: (scene: string, pinNumber: number) => string;
 }) {
   const { review, dispatch } = useReview();
   const hidden = review.pins.length - review.shown;
@@ -227,7 +252,7 @@ function PinGrid({
                     pin's render, so every card in the grid was the same picture
                     no matter which scenes the run had chosen. */}
                 {(() => {
-                  const own = review.pin === n ? cardSrc : mockups[pin.scene] ?? product;
+                  const own = review.pin === n ? cardSrc : mockups[mockupKey(pin.scene, n)] ?? product;
                   return own ? <img src={own} alt="" className="crop-img" /> : null;
                 })()}
               </div>
@@ -411,18 +436,31 @@ function ReviewBody({ runId }: { runId: string }) {
   const [adNotice, setAdNotice] = useState('');
   const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
   const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
-  // Distinct scenes, in the order the pins use them.
-  const sceneList = useMemo(() => {
-    const seen: string[] = [];
-    for (const p of review.pins) if (p.scene && !seen.includes(p.scene)) seen.push(p.scene);
-    return seen;
-  }, [review.pins]);
-  const { mockups, failure: sceneFailure } = useSceneMockups(
-    product,
-    sceneList,
-    run.styleDirection
-  );
-  const mockup = selectedScene ? mockups[selectedScene] : undefined;
+  // What to generate. Off, that is one image per template and pins sharing a
+  // template share it; on, it is one per pin. The key is what a card looks its
+  // own image up by, so it has to be computed the same way in both places —
+  // hence mockupKey().
+  const jobs = useMemo<MockupJob[]>(() => {
+    if (!run.distinctPerPin) {
+      const seen: string[] = [];
+      for (const p of review.pins) if (p.scene && !seen.includes(p.scene)) seen.push(p.scene);
+      return seen.map((scene) => ({ key: scene, scene }));
+    }
+    return review.pins
+      .map((p, i) => ({ key: `${p.scene}#${i + 1}`, scene: p.scene, variant: String(i + 1) }))
+      .filter((j) => j.scene);
+  }, [review.pins, run.distinctPerPin]);
+
+  const {
+    mockups,
+    failure: sceneFailure,
+    done: mockupsDone,
+    total: mockupsTotal,
+  } = useSceneMockups(product, jobs, run.styleDirection);
+
+  const mockupKey = (scene: string, pinNumber: number) =>
+    run.distinctPerPin ? `${scene}#${pinNumber}` : scene;
+  const mockup = selectedScene ? mockups[mockupKey(selectedScene, review.pin)] : undefined;
   // Crops render from the scene mockup when there is one, else the raw photo.
   const src = mockup ?? product;
   const rendered = useRenderedCrops(src, review.overlay, review.overlayPos);
@@ -592,6 +630,12 @@ function ReviewBody({ runId }: { runId: string }) {
         <div className="push-error-bar">{inlinePushError}</div>
       )}
       {adNotice && <div className="push-error-bar">{adNotice}</div>}
+      {mockupsTotal > 1 && mockupsDone < mockupsTotal && (
+        <div className="push-error-bar">
+          Generating mockups — {mockupsDone} of {mockupsTotal} done. Pins still waiting show your
+          original artwork.
+        </div>
+      )}
       {/* A scene that failed to generate used to be invisible: the pin quietly
           showed the untouched photo. Say it plainly instead — the pins are
           still usable, they just are not the mockups that were asked for. */}
@@ -611,7 +655,14 @@ function ReviewBody({ runId }: { runId: string }) {
       <div className="review-body">
         <div className="review-left">
           <CropPreview src={src} rendered={rendered} hasScene={Boolean(mockup)} />
-          <PinGrid src={src} rendered={rendered} networks={networks} mockups={mockups} product={product} />
+          <PinGrid
+            src={src}
+            rendered={rendered}
+            networks={networks}
+            mockups={mockups}
+            product={product}
+            mockupKey={mockupKey}
+          />
         </div>
         <Inspector />
       </div>

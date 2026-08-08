@@ -34,6 +34,11 @@ export type RunState = {
   // Default crops per spec; 9:16 unchecked. Instagram's default fan-out crop
   // is 4:5 feed (DECISIONS.md #3).
   crops: Record<Crop, boolean>;
+  // Whether every pin gets its own generated mockup, or pins sharing a
+  // template share one image. Sharing is far cheaper and produces byte-
+  // identical pins, which Pinterest treats as spam — so this defaults on and
+  // the wizard shows what it costs. See DECISIONS.md §12.
+  distinctPerPin: boolean;
 };
 
 // The shop's own mockup templates. These are not backdrops to stand a product
@@ -67,6 +72,7 @@ const initial: RunState = {
   scenes: [],
   fanOut: 'all',
   crops: { '2:3': true, '1:1': true, '4:5': true, '9:16': false },
+  distinctPerPin: true,
 };
 
 type Action =
@@ -80,6 +86,7 @@ type Action =
   | { type: 'setScenes'; scenes: number[] }
   | { type: 'setFanOut'; fanOut: FanOut }
   | { type: 'toggleCrop'; crop: Crop }
+  | { type: 'setDistinctPerPin'; on: boolean }
   | { type: 'reset' };
 
 function reducer(state: RunState, action: Action): RunState {
@@ -111,6 +118,8 @@ function reducer(state: RunState, action: Action): RunState {
       return { ...state, fanOut: action.fanOut };
     case 'toggleCrop':
       return { ...state, crops: { ...state.crops, [action.crop]: !state.crops[action.crop] } };
+    case 'setDistinctPerPin':
+      return { ...state, distinctPerPin: action.on };
     case 'reset':
       return initial;
   }
