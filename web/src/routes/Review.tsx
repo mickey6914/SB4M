@@ -406,6 +406,9 @@ function ReviewBody({ runId }: { runId: string }) {
   const navigate = useNavigate();
   const [pushing, setPushing] = useState(false);
   const [inlinePushError, setInlinePushError] = useState('');
+  // #ad is a reminder, not a gate — the push proceeds and this says what was
+  // left unlabelled, so the seller can judge which pins actually needed it.
+  const [adNotice, setAdNotice] = useState('');
   const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
   const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
   // Distinct scenes, in the order the pins use them.
@@ -528,6 +531,7 @@ function ReviewBody({ runId }: { runId: string }) {
         body: JSON.stringify({ runId, posts }),
       });
       const json = await res.json();
+      setAdNotice(json.adWarning ?? '');
       if (json.ok && json.batch) {
         setBatch(json.batch);
         setPushError('');
@@ -587,6 +591,7 @@ function ReviewBody({ runId }: { runId: string }) {
       {inlinePushError && (
         <div className="push-error-bar">{inlinePushError}</div>
       )}
+      {adNotice && <div className="push-error-bar">{adNotice}</div>}
       {/* A scene that failed to generate used to be invisible: the pin quietly
           showed the untouched photo. Say it plainly instead — the pins are
           still usable, they just are not the mockups that were asked for. */}

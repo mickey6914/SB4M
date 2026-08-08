@@ -64,12 +64,13 @@ export type PushOutcome = {
 };
 
 export type PushResult =
-  | { ok: true; batchId: string; outcomes: PushOutcome[] }
+  | { ok: true; batchId: string; outcomes: PushOutcome[]; adWarning?: string }
   | {
       ok: false;
       error: 'not_configured' | 'blocked' | 'rejected' | 'unreachable';
       message: string;
       outcomes?: PushOutcome[];
+      adWarning?: string;
     };
 
 export type RemoteAccount = {
@@ -87,9 +88,9 @@ export function isConfigured(): boolean {
   return Boolean(process.env.CONTENT360_API_KEY);
 }
 
-// Workspace rule: #ad is required on every affiliate description, with a hard
-// block at push time on anything missing it. This runs before any network
-// call so a non-compliant batch never leaves the building.
+// Which descriptions carry no #ad. A reminder for the seller, not a gate —
+// see pushBatch. Whether a given pin needs the label is a judgement about that
+// pin, and the app is not in a position to make it.
 export function findAdViolations(posts: OutgoingPost[]): string[] {
   return posts.filter((p) => !adCompliant(p.caption)).map((p) => p.localId);
 }
@@ -307,21 +308,22 @@ export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
     return { ok: false, error: 'rejected', message: 'Nothing to push — approve some pins first.' };
   }
 
+  // #ad is a reminder, not a gate.
+  //
+  // This used to refuse the whole batch — every post, including the compliant
+  // ones — before a single network call. Two things were wrong with that. It
+  // ignored the seller's own `requireAd` workspace rule and enforced regardless
+  // of the setting, and it made one unlabelled description cost the other
+  // eighty-nine their push. Whether a pin needs #ad is a judgement about that
+  // pin: an affiliate link does, a post about the seller's own shop does not.
+  // So the count rides along with the result and the seller decides.
   const violations = findAdViolations(posts);
-  if (violations.length > 0) {
-    return {
-      ok: false,
-      error: 'blocked',
-      message: `Workspace rule: ${violations.length} description${
-        violations.length > 1 ? 's are' : ' is'
-      } missing #ad. Fix them in review before pushing.`,
-      outcomes: violations.map((localId) => ({
-        localId,
-        state: 'failed',
-        error: '#ad missing — blocked by workspace rule.',
-      })),
-    };
-  }
+  const adWarning =
+    violations.length > 0
+      ? `${violations.length} description${
+          violations.length > 1 ? 's have' : ' has'
+        } no #ad. Add it to any that promote an affiliate link.`
+      : undefined;
 
   if (!isConfigured()) {
     return {
@@ -329,6 +331,7 @@ export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
       error: 'not_configured',
       message:
         'No Content360 API key on the server yet — set CONTENT360_API_KEY (and CONTENT360_WORKSPACE_ID) to push for real.',
+      adWarning,
     };
   }
 
@@ -344,12 +347,14 @@ export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
         ok: false,
         error: 'rejected',
         message: 'Content360 refused the API key. Check CONTENT360_API_KEY and the workspace id.',
+        adWarning,
       };
     }
     return {
       ok: false,
       error: 'unreachable',
       message: 'Could not reach Content360 — the batch was not pushed. Nothing was lost; try again.',
+      adWarning,
     };
   }
 
@@ -442,7 +447,7 @@ export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
     }
   }
 
-  return { ok: true, batchId: `batch-${Date.now()}`, outcomes };
+  return { ok: true, batchId: `batch-${Date.now()}`, outcomes, adWarning };
 }
 
 // Re-read the current state of posts we have already handed over, so the

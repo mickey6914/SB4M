@@ -29,12 +29,22 @@ test('#ad violations are found before any network call', () => {
   assert.deepEqual(violations, ['b']);
 });
 
-test('a batch missing #ad is hard-blocked, never sent', async () => {
-  const result = await pushBatch([post('a', 'No tag here.')]);
-  assert.equal(result.ok, false);
-  assert.equal(result.error, 'blocked');
-  assert.match(result.message, /#ad/);
-  assert.equal(result.outcomes?.[0].state, 'failed');
+// #ad is a reminder now, not a gate. It used to refuse the whole batch before
+// any network call, which meant one unlabelled description cost the other
+// eighty-nine their push — and it did so regardless of the seller's own
+// requireAd setting.
+test('a description missing #ad is reported, not blocked', async () => {
+  const saved = process.env.CONTENT360_API_KEY;
+  delete process.env.CONTENT360_API_KEY;
+  try {
+    const result = await pushBatch([post('a', 'No tag here.')]);
+    // It gets as far as the credential check, which is proof it was not
+    // refused for the missing tag.
+    assert.equal(result.error, 'not_configured');
+    assert.match(result.adWarning ?? '', /#ad/);
+  } finally {
+    if (saved !== undefined) process.env.CONTENT360_API_KEY = saved;
+  }
 });
 
 test('an empty batch is rejected with a useful message', async () => {
@@ -56,15 +66,14 @@ test('a compliant batch without credentials reports not_configured, not a crash'
   }
 });
 
-test('compliance is checked before configuration — a bad batch blocks even with a key set', async () => {
+test('a compliant batch carries no #ad warning at all', async () => {
   const saved = process.env.CONTENT360_API_KEY;
-  process.env.CONTENT360_API_KEY = 'test-key';
+  delete process.env.CONTENT360_API_KEY;
   try {
-    const result = await pushBatch([post('a', 'Missing the tag.')]);
-    assert.equal(result.error, 'blocked');
+    const result = await pushBatch([post('a', 'Warm mugs. Great gift. #ad')]);
+    assert.equal(result.adWarning, undefined);
   } finally {
-    if (saved === undefined) delete process.env.CONTENT360_API_KEY;
-    else process.env.CONTENT360_API_KEY = saved;
+    if (saved !== undefined) process.env.CONTENT360_API_KEY = saved;
   }
 });
 

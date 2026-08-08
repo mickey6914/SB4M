@@ -44,6 +44,8 @@ export type RunState = {
 export const SCENE_CATALOG = [
   'T-shirt',
   'Sweatshirt',
+  'T-shirt flat lay',
+  'Sweatshirt flat lay',
   'Coffee cup',
   'Pillow',
   'Invitation card',

@@ -99,7 +99,9 @@ export function registerPushRoutes(app: FastifyInstance) {
         batches.set(record.id, record);
       }
       const status = result.error === 'not_configured' ? 503 : result.error === 'blocked' ? 422 : 502;
-      return reply.status(status).send({ ok: false, error: result.error, message: result.message });
+      return reply
+        .status(status)
+        .send({ ok: false, error: result.error, message: result.message, adWarning: result.adWarning });
     }
 
     const record: Batch = {
@@ -117,7 +119,7 @@ export function registerPushRoutes(app: FastifyInstance) {
     };
     batches.set(record.id, record);
 
-    return reply.send({ ok: true, batch: record });
+    return reply.send({ ok: true, batch: record, adWarning: result.adWarning });
   });
 
   // Re-read state from Content360 for everything we have handed over, so

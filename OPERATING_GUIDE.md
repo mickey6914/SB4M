@@ -94,6 +94,7 @@ Ten templates, each applying your artwork to a product:
 | Template | What it produces |
 | --- | --- |
 | T-shirt · Sweatshirt | Worn outdoors, autumn park, friends |
+| T-shirt flat lay · Sweatshirt flat lay | Garment laid flat, shot straight down |
 | Coffee cup | Held close at a kitchen table, morning light, pets behind |
 | Pillow | On a linen sofa in a sunlit room |
 | Invitation card | Standing on a table with a kraft envelope |
@@ -180,7 +181,7 @@ Pinterest account clears the board, because a board belongs to an account.
 
 | Rule | Default | What it does |
 | --- | --- | --- |
-| Add #ad to every affiliate description | On | And a push is **blocked** without it |
+| Add #ad to every affiliate description | On | Pre-fills #ad. A push is **never blocked** — anything left unlabelled is reported after, for you to judge |
 | Only post between set hours | On, 09:00–17:00 | The posting window |
 | No same product twice on one network per day | On | Prevents self-spam |
 | Require approval before pushing | Off | Extra gate before the push |

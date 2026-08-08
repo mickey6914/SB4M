@@ -53,7 +53,33 @@ export const MOCKUP_TEMPLATES: MockupTemplate[] = [
   },
   {
     label: 'Sweatshirt',
-    prompt: `A young woman wearing a baggy version of this shirt having fun on a fall day in the park with her friends. ${PLACE_IT}` + ' ' + SUBJECT_RULE,
+    // "Baggy version of this shirt" let the model choose the garment, and it
+    // kept choosing a short-sleeve tee or a t-shirt dress. Name the garment.
+    prompt:
+      'A young woman wearing an oversized long-sleeve crewneck sweatshirt printed with the attached design, having fun on a fall day in the park with her friends. The garment is unmistakably a heavyweight fleece crewneck sweatshirt with ribbed cuffs and a ribbed neckband, long sleeves, not a t-shirt. ' +
+      PLACE_IT +
+      ' ' +
+      SUBJECT_RULE,
+    aspectRatio: PIN_RATIO,
+  },
+  {
+    label: 'T-shirt flat lay',
+    // Flat lays are the seller's staple listing image: the garment laid out
+    // and shot straight down, so the artwork reads without a body under it.
+    prompt:
+      'An overhead flat-lay product photograph of a plain white cotton t-shirt laid flat and smooth on a soft neutral surface, printed with the attached design across the chest. Shot straight down, evenly lit, with a few simple seasonal props arranged at the corners of the frame. ' +
+      PLACE_IT +
+      ' ' +
+      SUBJECT_RULE,
+    aspectRatio: PIN_RATIO,
+  },
+  {
+    label: 'Sweatshirt flat lay',
+    prompt:
+      'An overhead flat-lay product photograph of a cream long-sleeve crewneck sweatshirt laid flat with the sleeves folded inward, on a soft neutral surface, printed with the attached design across the chest. Heavyweight fleece with ribbed cuffs and a ribbed neckband. Shot straight down, evenly lit, minimal props. ' +
+      PLACE_IT +
+      ' ' +
+      SUBJECT_RULE,
     aspectRatio: PIN_RATIO,
   },
   {
