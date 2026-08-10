@@ -257,7 +257,21 @@ function PinGrid({
                 }
               }}
             >
-              {pin.flagged && <span className="pin-flag">Keyword flagged</span>}
+              {/* Approve here, without stepping through every pin. Approval used
+                  to be a bare count and the push took the first N pins, so a
+                  rejected pin still went out and an approved one further down
+                  did not. */}
+              <label
+                className={pin.approved ? 'pin-check is-on' : 'pin-check'}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={pin.approved}
+                  onChange={() => dispatch({ type: 'toggleApproved', pin: n })}
+                />
+                {pin.approved ? 'Approved' : 'Include'}
+              </label>
               <div className="pin-media" style={{ aspectRatio: CROP_RATIOS[review.crop] }}>
                 {/* Each card shows ITS OWN scene. It used to show the selected
                     pin's render, so every card in the grid was the same picture
@@ -360,6 +374,25 @@ function Inspector() {
           onChange={(e) => dispatch({ type: 'setProduct', text: e.target.value })}
           placeholder="The product description handed to the model"
         />
+      </div>
+
+      <div className="field-block">
+        <div className="field-label">Destination link</div>
+        <input
+          className="input"
+          type="url"
+          value={pin.link}
+          onChange={(e) => dispatch({ type: 'setLink', url: e.target.value })}
+          placeholder="https://expressartvibe.etsy.com/listing/..."
+        />
+        <button
+          className="btn btn-ghost"
+          type="button"
+          style={{ marginTop: 6 }}
+          onClick={() => dispatch({ type: 'setLinkAll', url: pin.link })}
+        >
+          Use this link for every pin
+        </button>
       </div>
 
       <div className="field-block">
@@ -480,6 +513,7 @@ function ReviewBody({ runId }: { runId: string }) {
   // #ad is a reminder, not a gate — the push proceeds and this says what was
   // left unlabelled, so the seller can judge which pins actually needed it.
   const [adNotice, setAdNotice] = useState('');
+  const [pushProgress, setPushProgress] = useState('');
   const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
   const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
   // What to generate. Off, that is one image per template and pins sharing a
@@ -570,13 +604,55 @@ function ReviewBody({ runId }: { runId: string }) {
       return;
     }
 
-    const posts = review.pins.slice(0, review.approved).flatMap((pin, i) =>
+    // Each pin's OWN crops. This used to read `rendered`, which is the crops of
+    // whichever pin happened to be selected — so every post in the batch went
+    // out carrying the same picture. Rendering is local sharp work with no API
+    // cost, so it is done per pin, here, at the moment of pushing.
+    const approvedPins = review.pins
+      .map((pin, i) => ({ pin, n: i + 1 }))
+      .filter(({ pin }) => pin.approved);
+
+    const assets = new Map<number, Rendered>();
+    for (const { pin, n } of approvedPins) {
+      setPushProgress(`Preparing assets — ${assets.size + 1} of ${approvedPins.length}…`);
+      const source = mockups[mockupKey(pin.scene, n)] ?? product;
+      if (!source) continue;
+      try {
+        const res = await fetch('/api/crops/render', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            src: source,
+            overlay: review.overlay,
+            overlayPos: review.overlayPos,
+            overlaySize: review.overlaySize,
+          }),
+        });
+        const json = await res.json();
+        if (json.ok && json.images) assets.set(n, json.images);
+      } catch {
+        // Left out of the map; the guard below refuses rather than sending the
+        // wrong pin's picture, which is the fault this whole block fixes.
+      }
+    }
+    setPushProgress('');
+
+    const missingAsset = approvedPins.find(({ n }) => !assets.get(n));
+    if (missingAsset) {
+      setInlinePushError(
+        `Could not render the assets for pin ${missingAsset.n}, so nothing was pushed. Try again.`
+      );
+      setPushing(false);
+      return;
+    }
+
+    const posts = approvedPins.flatMap(({ pin, n }, i) =>
       wanted.map((network) => ({
-        localId: `${runId}#${i + 1}#${network}`,
+        localId: `${runId}#${n}#${network}`,
         network,
         scheduledAt: slots.get(`${i + 1}#${network}`)!,
         caption: pin.desc,
-        assetUrl: rendered?.[networkCrop[network]] ?? src ?? '',
+        assetUrl: assets.get(n)![networkCrop[network]],
         // The account chosen in Connections. Sent explicitly so a workspace
         // with two accounts on one network never depends on list order.
         ...(rules.accountByNetwork[network]
@@ -586,7 +662,10 @@ function ReviewBody({ runId }: { runId: string }) {
           ? {
               pinterest: {
                 title: pin.title,
-                link: run.listing?.url ?? '',
+                // The pin's own destination. An upload-based run has no
+                // listing to inherit a URL from, so this was empty on every
+                // post — a pin nobody could buy from.
+                link: pin.link,
                 // The board picked once in Connections. Content360 keys it
                 // per account, so this is the only destination we supply.
                 ...(rules.pinterestBoardId ? { board: rules.pinterestBoardId } : {}),
@@ -661,6 +740,9 @@ function ReviewBody({ runId }: { runId: string }) {
           <button className="btn btn-secondary" type="button" onClick={() => dispatch({ type: 'approveAll' })}>
             Approve all
           </button>
+          <button className="btn btn-secondary" type="button" onClick={() => dispatch({ type: 'rejectAll' })}>
+            Clear all
+          </button>
           <button
             className="btn btn-primary"
             type="button"
@@ -676,6 +758,7 @@ function ReviewBody({ runId }: { runId: string }) {
         <div className="push-error-bar">{inlinePushError}</div>
       )}
       {adNotice && <div className="push-error-bar">{adNotice}</div>}
+      {pushProgress && <div className="push-error-bar">{pushProgress}</div>}
       {mockupsTotal > 1 && mockupsDone < mockupsTotal && (
         <div className="push-error-bar">
           Generating mockups — {mockupsDone} of {mockupsTotal} done. Pins still waiting show your

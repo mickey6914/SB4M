@@ -145,8 +145,15 @@ every crop rendered. Watch or walk away.
 The screen that matters, and still completely safe — nothing has left your
 computer except the AI calls.
 
+**Every card has an Include checkbox.** Tick the pins you want; only ticked
+pins are pushed. Approval is per pin, not a count — rejecting one no longer
+lets it through, and approving a later one no longer leaves it behind.
+
 Each pin has an inspector:
 
+- **Destination link** — where the pin sends a click. Seeded from the run's
+  listing URL, and blank on an upload-based run, so set it here. **Use this
+  link for every pin** copies it across the batch
 - Edit **title**, **description** and **overlay text** by hand
 - Set the overlay's **position** (top / middle / bottom) and **size** (small /
   medium / large). Small is the original bar, medium the default; large is
@@ -157,7 +164,7 @@ Each pin has an inspector:
 
 Across the batch:
 
-- **Approve all** accepts everything at once
+- **Approve all** ticks everything; **Clear all** unticks everything
 - The counter reads `N approved · N flagged`
 - **Show more** pages through beyond the first six cards
 - **Push to Content360** — stays disabled until at least one pin is approved

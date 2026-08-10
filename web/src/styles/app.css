@@ -1385,3 +1385,34 @@ html, body, #root {
   font-size: 13px;
   color: var(--color-neutral-700);
 }
+
+
+/* Approve a pin from the grid. Sits over the media so it is reachable without
+   stepping through every pin in the inspector. */
+.pin-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fff;
+  border: 2px solid var(--color-divider);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.pin-check.is-on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.pin-check input {
+  margin: 0;
+}

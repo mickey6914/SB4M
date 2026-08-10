@@ -15,6 +15,14 @@ export type Pin = {
   kwNote: string;
   flagged: boolean;
   scene: string; // the inspiration scene this pin's mockup is built in
+  // Whether this pin goes out. Approval used to be a bare count, and the push
+  // took the FIRST N pins — so rejecting pin 2 and approving pin 6 still sent
+  // pins 1-4. Which pins are approved is a fact about the pins.
+  approved: boolean;
+  // Where the pin sends someone who clicks it. Seeded from the run's listing
+  // URL; editable because an upload-based run has no listing to inherit one
+  // from, and a pin with no destination is a pin nobody can buy from.
+  link: string;
 };
 
 export type OverlaySize = 'small' | 'medium' | 'large';
@@ -25,6 +33,8 @@ export type ReviewState = {
   pins: Pin[];
   pin: number; // selected, 1-based
   crop: Crop;
+  // Derived from the pins on every change, so the many places that read a
+  // count keep working while the pins stay the source of truth.
   approved: number;
   product: string;
   overlay: string;
@@ -59,6 +69,8 @@ export function seedReview(run: RunState): ReviewState {
     // having none.
     flagged: false,
     scene: sceneNames[i % sceneNames.length],
+    approved: false,
+    link: run.listing?.url ?? run.link ?? '',
   }));
   return {
     pins,
@@ -87,6 +99,10 @@ type Action =
   | { type: 'setOverlaySize'; size: OverlaySize }
   | { type: 'approve' }
   | { type: 'reject' }
+  | { type: 'toggleApproved'; pin: number }
+  | { type: 'rejectAll' }
+  | { type: 'setLink'; url: string }
+  | { type: 'setLinkAll'; url: string }
   | { type: 'approveAll' }
   | { type: 'showMore' }
   | { type: 'writeStart' }
@@ -101,6 +117,15 @@ function updateSelected(state: ReviewState, patch: Partial<Pin>): ReviewState {
 
 function advance(state: ReviewState): number {
   return state.pin < state.pins.length ? state.pin + 1 : state.pin;
+}
+
+function setApproved(state: ReviewState, pin: number, on: boolean): Pin[] {
+  return state.pins.map((p, i) => (i === pin - 1 ? { ...p, approved: on } : p));
+}
+
+// One place recomputes the count, so it can never drift from the pins.
+function withCount(state: ReviewState): ReviewState {
+  return { ...state, approved: state.pins.filter((p) => p.approved).length };
 }
 
 function reducer(state: ReviewState, action: Action): ReviewState {
@@ -129,15 +154,29 @@ function reducer(state: ReviewState, action: Action): ReviewState {
     case 'setOverlaySize':
       return { ...state, overlaySize: action.size };
     case 'approve':
+      return withCount({ ...state, pins: setApproved(state, state.pin, true), pin: advance(state) });
+    case 'reject':
+      return withCount({
+        ...state,
+        pins: setApproved(state, state.pin, false),
+        pin: advance(state),
+      });
+    case 'toggleApproved':
+      return withCount({
+        ...state,
+        pins: setApproved(state, action.pin, !state.pins[action.pin - 1]?.approved),
+      });
+    case 'approveAll':
+      return withCount({ ...state, pins: state.pins.map((p) => ({ ...p, approved: true })) });
+    case 'rejectAll':
+      return withCount({ ...state, pins: state.pins.map((p) => ({ ...p, approved: false })) });
+    case 'setLink':
       return {
         ...state,
-        approved: Math.min(state.pins.length, state.approved + 1),
-        pin: advance(state),
+        pins: state.pins.map((p, i) => (i === state.pin - 1 ? { ...p, link: action.url } : p)),
       };
-    case 'reject':
-      return { ...state, pin: advance(state) };
-    case 'approveAll':
-      return { ...state, approved: state.pins.length };
+    case 'setLinkAll':
+      return { ...state, pins: state.pins.map((p) => ({ ...p, link: action.url })) };
     case 'showMore':
       return { ...state, shown: state.pins.length };
     case 'writeStart':
