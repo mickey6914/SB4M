@@ -122,6 +122,50 @@ function useSceneMockups(
   return { mockups, failure, done, total: product && jobs.length ? jobs.length : 0 };
 }
 
+// Which of the accounts this run will post to are no longer authorized.
+//
+// Content360 refuses a post to an expired account, and so does our push — but
+// both of those happen after the seller has committed. Worse, a token can
+// expire BETWEEN scheduling and the publish time, so a batch that pushed
+// cleanly still fails days later, silently, in someone else's dashboard. The
+// state is on the accounts record; asking for it before the push turns a
+// discovery into a warning.
+function useAccountHealth(networks: string[], chosen: Record<string, { id: number } | undefined>) {
+  const [stale, setStale] = useState<string[]>([]);
+  const key = networks.join('|');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/content360/accounts');
+        const json = await res.json();
+        if (cancelled || !json.ok || !Array.isArray(json.accounts)) return;
+        const bad: string[] = [];
+        for (const network of key ? key.split('|') : []) {
+          const pick = chosen[network]?.id;
+          // The account this run will actually use: the chosen one, or the
+          // first on that network when nothing is chosen.
+          const account = pick
+            ? json.accounts.find((a: any) => a.id === pick)
+            : json.accounts.find((a: any) => a.network === network);
+          if (account && !account.authorized) {
+            bad.push(`${network} (${account.username || account.name})`);
+          }
+        }
+        setStale(bad);
+      } catch {
+        // Silence here is right: a check that cannot run is not a problem to
+        // report, and the push has its own guard.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return stale;
+}
+
 // Fetch the four rendered crops whenever the source or overlay changes,
 // debounced so typing in the overlay field doesn't re-render per keystroke.
 function useRenderedCrops(
@@ -524,6 +568,16 @@ function ReviewBody({ runId }: { runId: string }) {
   // left unlabelled, so the seller can judge which pins actually needed it.
   const [adNotice, setAdNotice] = useState('');
   const [pushProgress, setPushProgress] = useState('');
+  const pushNetworks = useMemo(
+    () =>
+      run.fanOut === 'pinterest'
+        ? ['pinterest']
+        : run.fanOut === 'pinterest_facebook'
+          ? ['pinterest', 'facebook']
+          : ['pinterest', 'facebook', 'instagram'],
+    [run.fanOut]
+  );
+  const staleAccounts = useAccountHealth(pushNetworks, rules.accountByNetwork);
   const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
   const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
   // What to generate. Off, that is one image per template and pins sharing a
@@ -782,6 +836,14 @@ function ReviewBody({ runId }: { runId: string }) {
       )}
       {adNotice && <div className="push-error-bar">{adNotice}</div>}
       {pushProgress && <div className="push-error-bar">{pushProgress}</div>}
+      {staleAccounts.length > 0 && (
+        <div className="push-error-bar">
+          {staleAccounts.join(' and ')} {staleAccounts.length > 1 ? 'need' : 'needs'} reconnecting in
+          Content360 — the access token has expired. Posts to{' '}
+          {staleAccounts.length > 1 ? 'those accounts' : 'that account'} will fail. Reconnect under
+          Configuration → Social Accounts, then push.
+        </div>
+      )}
       {mockupsTotal > 1 && mockupsDone < mockupsTotal && (
         <div className="push-error-bar">
           Generating mockups — {mockupsDone} of {mockupsTotal} done. Pins still waiting show your

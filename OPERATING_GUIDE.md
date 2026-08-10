@@ -177,6 +177,13 @@ If no Pinterest board is set, Review shows a notice with a **Choose a board**
 link. The push still works, but Pinterest can't publish without one, so the
 posts would sit held.
 
+**Expired accounts are flagged before you push.** Social tokens expire on a
+schedule — Instagram's roughly every 60 days — and an expired one fails at
+publish time, days after a push that looked fine. Review checks the accounts
+this run will post to and names any that need reconnecting, so you find out
+before scheduling rather than afterwards. Reconnect in Content360 under
+Configuration → Social Accounts.
+
 ### Calendar
 
 The cross-network schedule — when each post goes out, on which network. Reads
