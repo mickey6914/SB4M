@@ -49,8 +49,12 @@ export function seedReview(run: RunState): ReviewState {
     desc: '',
     keywords: [],
     kwNote: '',
-    // Flag every fifth pin until real keyword QA exists (illustrative).
-    flagged: (i + 1) % 5 === 0,
+    // No keyword QA exists yet, so nothing is flagged. This used to mark every
+    // fifth pin regardless of content — a mockup leftover that looked like a
+    // verdict on the copy and always landed on the same card in the grid. The
+    // field stays for when a real check arrives; inventing one is worse than
+    // having none.
+    flagged: false,
     scene: sceneNames[i % sceneNames.length],
   }));
   return {

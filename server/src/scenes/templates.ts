@@ -19,6 +19,10 @@ export type MockupTemplate = {
   prompt: string;
   aspectRatio: string;
   model?: string;
+  // Some shots are defined by their camera position — a flat lay seen from a
+  // three-quarter angle is not a flat lay. Those keep the angle fixed and vary
+  // only in light and styling.
+  overhead?: boolean;
 };
 
 // "the attached digital art piece" / "the input image" is how the seller's
@@ -45,6 +49,93 @@ const SUBJECT_RULE =
 // trimming rather than gutting.
 const PIN_RATIO = '2:3';
 
+// — Making seven pins look like seven pins —
+//
+// Generating each pin separately was not enough. The prompts are specific
+// enough that the model had almost no room left to differ, so seven distinct
+// generations came back as seven near-identical pictures. Fresh randomness
+// does not help when the instructions pin down the shot.
+//
+// So the shot itself varies. Three independent axes, indexed by the pin's
+// variant number: 6 x 5 x 6 = 180 combinations before one repeats, which is
+// more than a month's schedule. Nothing here touches the product or the
+// artwork — only where the camera is, what the light is doing, and what else
+// is in the room.
+const ANGLES = [
+  'Photographed straight on at eye level.',
+  'Photographed from slightly above, looking down at the product.',
+  'Photographed from a low three-quarter angle.',
+  'Photographed from a three-quarter angle to the right.',
+  'Photographed close overhead, looking almost straight down.',
+  'Photographed from a three-quarter angle to the left, slightly below.',
+];
+
+const LIGHTING = [
+  'Soft morning window light falling from the left.',
+  'Bright, even overcast daylight.',
+  'Warm golden late-afternoon light with long soft shadows.',
+  'Diffused studio light, minimal shadow.',
+  'Low warm lamplight with deep shadows in the background.',
+];
+
+// Only overhead templates use this. Dropping the camera axis leaves them two
+// axes and thirty combinations, which collided inside a single seven-pin run —
+// so a flat lay varies its surface instead of its angle.
+const SURFACES = [
+  'Laid on a pale oak surface.',
+  'Laid on warm natural linen.',
+  'Laid on a soft off-white backdrop.',
+  'Laid on a pale grey concrete surface.',
+  'Laid on a muted sage cloth.',
+  'Laid on aged light wood with a visible grain.',
+  'Laid on a soft cream wool blanket.',
+];
+
+const STYLING = [
+  'The surroundings are minimal and uncluttered.',
+  'A few seasonal props sit just inside the edges of the frame.',
+  'Soft greenery is blurred well behind the product.',
+  'A plain neutral backdrop with nothing else in shot.',
+  'Warm textiles — a folded throw, a linen edge — soften the background.',
+  'A window and a hint of the room beyond sit far out of focus behind.',
+];
+
+// Picking the shot.
+//
+// Two constraints fight here. Plain `i % length` fails because pins on one
+// template are not consecutive — with three templates they are variants 1, 4,
+// 7, a stride of 3, and a stride of 3 against a six-item list visits two
+// entries and no more. Hashing fixes that but reintroduces collisions: three
+// independent hashes landing on the same index is a one-in-210 event, which
+// across the 21 pairs in a seven-pin run happens about a tenth of the time.
+// One duplicate pair in seven is the exact complaint this is meant to answer.
+//
+// So: enumerate the combinations instead. Treat the axes as digits of one
+// number and walk it with a stride co-prime to the total, which visits every
+// combination once before repeating any. No hash, no collisions, and the same
+// pin always asks for the same shot so the cache still means something.
+function combinationIndex(i: number, total: number, stride: number): number {
+  return (i * stride) % total;
+}
+
+export function variationFor(variant: number, overhead = false): string {
+  const i = Math.max(0, Math.floor(variant) - 1);
+
+  // An overhead template already fixes the camera — a flat lay seen from a
+  // three-quarter angle is not a flat lay — so the surface underneath varies
+  // in the angle's place.
+  const first = overhead ? SURFACES : ANGLES;
+  const total = first.length * LIGHTING.length * STYLING.length;
+  // 7 and 11 are co-prime with both totals (180 and 210).
+  const combo = combinationIndex(i, total, overhead ? 11 : 7);
+
+  return [
+    first[combo % first.length],
+    LIGHTING[Math.floor(combo / first.length) % LIGHTING.length],
+    STYLING[Math.floor(combo / (first.length * LIGHTING.length)) % STYLING.length],
+  ].join(' ');
+}
+
 export const MOCKUP_TEMPLATES: MockupTemplate[] = [
   {
     label: 'T-shirt',
@@ -64,10 +155,11 @@ export const MOCKUP_TEMPLATES: MockupTemplate[] = [
   },
   {
     label: 'T-shirt flat lay',
+    overhead: true,
     // Flat lays are the seller's staple listing image: the garment laid out
     // and shot straight down, so the artwork reads without a body under it.
     prompt:
-      'An overhead flat-lay product photograph of a plain white cotton t-shirt laid flat and smooth on a soft neutral surface, printed with the attached design across the chest. Shot straight down, evenly lit, with a few simple seasonal props arranged at the corners of the frame. ' +
+      'An overhead flat-lay product photograph of a plain white cotton t-shirt laid flat and smooth on a soft neutral surface, printed with the attached design across the chest. Shot straight down. ' +
       PLACE_IT +
       ' ' +
       SUBJECT_RULE,
@@ -75,8 +167,9 @@ export const MOCKUP_TEMPLATES: MockupTemplate[] = [
   },
   {
     label: 'Sweatshirt flat lay',
+    overhead: true,
     prompt:
-      'An overhead flat-lay product photograph of a cream long-sleeve crewneck sweatshirt laid flat with the sleeves folded inward, on a soft neutral surface, printed with the attached design across the chest. Heavyweight fleece with ribbed cuffs and a ribbed neckband. Shot straight down, evenly lit, minimal props. ' +
+      'An overhead flat-lay product photograph of a cream long-sleeve crewneck sweatshirt laid flat with the sleeves folded inward, on a soft neutral surface, printed with the attached design across the chest. Heavyweight fleece with ribbed cuffs and a ribbed neckband. Shot straight down. ' +
       PLACE_IT +
       ' ' +
       SUBJECT_RULE,
@@ -88,7 +181,10 @@ export const MOCKUP_TEMPLATES: MockupTemplate[] = [
     // left the mug small enough to miss. The warmth of that scene is kept as
     // background; the mug is now the subject.
     prompt:
-      'A close-up lifestyle mockup of a ceramic mug printed with the attached digital art piece, held in both hands at a kitchen table in soft morning light, turned so the artwork faces the camera squarely. A tabby cat and a cocker spaniel are softly blurred in the background. ' +
+      // The seller's original put a tabby cat and a cocker spaniel in the
+      // background. Baked into the template they appeared in every single mug
+      // pin, which wears out fast. The room is left to the styling axis now.
+      'A close-up lifestyle mockup of a ceramic mug printed with the attached digital art piece, held in both hands at a kitchen table, turned so the artwork faces the camera squarely. ' +
       PLACE_IT +
       ' ' +
       SUBJECT_RULE,
@@ -128,14 +224,16 @@ export const MOCKUP_TEMPLATES: MockupTemplate[] = [
   },
   {
     label: 'Sticker sheet',
+    overhead: true,
     prompt:
-      'A flat sticker sheet mockup. A single sheet of paper on a dark charcoal background displays the motifs from the attached image as die-cut stickers. Each sticker has a clean white border and a subtle drop shadow. The composition is clean and professional, showing the stickers arranged neatly on the sheet. Realistic lighting and overhead perspective.' + ' ' + SUBJECT_RULE,
+      'A flat sticker sheet mockup. A single sheet of paper on a dark charcoal background displays the motifs from the attached image as die-cut stickers. Each sticker has a clean white border and a subtle drop shadow. The composition is clean and professional, showing the stickers arranged neatly on the sheet. Overhead perspective.' + ' ' + SUBJECT_RULE,
     aspectRatio: PIN_RATIO,
   },
   {
     label: 'Planner stickers',
+    overhead: true,
     prompt:
-      'A sticker mockup showing die-cut style stickers of the motifs from the attached image placed inside an open planner. The stickers have a high-quality die-cut white border and subtle shadow, looking as if they are freshly peeled and stuck to the page. Realistic lighting and overhead composition.' + ' ' + SUBJECT_RULE,
+      'A sticker mockup showing die-cut style stickers of the motifs from the attached image placed inside an open planner. The stickers have a high-quality die-cut white border and subtle shadow, looking as if they are freshly peeled and stuck to the page. Overhead composition.' + ' ' + SUBJECT_RULE,
     aspectRatio: PIN_RATIO,
   },
 ];

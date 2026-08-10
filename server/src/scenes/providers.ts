@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { loadImageSource } from '../shared/load-image.js';
-import type { MockupTemplate } from './templates.js';
+import { variationFor, type MockupTemplate } from './templates.js';
 
 // Scene-background providers. The hybrid rule: a provider only ever
 // generates an EMPTY background. The seller's product photograph is
@@ -263,13 +263,22 @@ export type MockupResult =
 export async function generateMockupFromArt(
   art: Buffer,
   artMime: string,
-  template: MockupTemplate
+  template: MockupTemplate,
+  // Which pin this is. Two pins on one template used to send byte-identical
+  // prompts, and a fresh generation of an identical prompt is an almost
+  // identical picture — so the variant moves the camera, the light and the
+  // room instead of only busting a cache key.
+  variant?: number
 ): Promise<MockupResult> {
   const key = process.env.ABACUS_API_KEY;
   if (!key) {
     return { ok: false, message: 'No Abacus API key — set ABACUS_API_KEY to build mockups.' };
   }
   const model = template.model ?? abacusModel();
+  const prompt =
+    variant && variant > 0
+      ? `${template.prompt} ${variationFor(variant, template.overhead)}`
+      : template.prompt;
   let json: any;
   try {
     const res = await fetch(`${abacusBaseUrl()}/chat/completions`, {
@@ -282,7 +291,7 @@ export async function generateMockupFromArt(
           {
             role: 'user',
             content: [
-              { type: 'text', text: template.prompt },
+              { type: 'text', text: prompt },
               {
                 type: 'image_url',
                 image_url: { url: `data:${artMime};base64,${art.toString('base64')}` },

@@ -14,10 +14,10 @@ type MockupBody = {
   styleDirection?: string;
   product?: string; // http(s) URL or data: URL
   scale?: number;
-  // Distinguishes one pin's mockup from another's when they share a template.
-  // It changes nothing about the prompt — it only keeps two requests from
-  // collapsing onto the same cache entry, so each pin gets its own generation
-  // instead of a byte-identical copy. See DECISIONS.md §12.
+  // Which pin this is. It separates cache entries so two pins on one template
+  // do not collapse onto a single generation, AND it moves the camera, light
+  // and styling — because a fresh generation of an identical prompt came back
+  // an almost identical picture. See DECISIONS.md §12.
   variant?: string | number;
 };
 
@@ -68,7 +68,13 @@ export function registerSceneRoutes(app: FastifyInstance) {
     // else is a §7 hybrid scene: empty backdrop, product composited on top.
     const template = templateByLabel(scene);
     if (template) {
-      const built = await generateMockupFromArt(productBuf, 'image/png', template);
+      const variantNumber = Number(req.body?.variant);
+      const built = await generateMockupFromArt(
+        productBuf,
+        'image/png',
+        template,
+        Number.isFinite(variantNumber) ? variantNumber : undefined
+      );
       if (!built.ok) {
         return reply.status(502).send({ ok: false, provider: 'abacus', message: built.message });
       }

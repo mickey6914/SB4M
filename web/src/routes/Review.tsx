@@ -115,7 +115,10 @@ function useSceneMockups(
     };
   }, [product, signature, styleDirection]);
 
-  return { mockups, failure, done, total: jobs.length };
+  // total is 0 when there is nothing to generate FROM. Without this the banner
+  // sat at "0 of 30" forever on a Review opened with no run behind it — the
+  // effect returns early for want of a product and never counts anything.
+  return { mockups, failure, done, total: product && jobs.length ? jobs.length : 0 };
 }
 
 // Fetch the four rendered crops whenever the source or overlay changes,
