@@ -212,7 +212,7 @@ Pinterest account clears the board, because a board belongs to an account.
 
 | Rule | Default | What it does |
 | --- | --- | --- |
-| Add #ad to every affiliate description | On | Pre-fills #ad. A push is **never blocked** — anything left unlabelled is reported after, for you to judge |
+| Remind me when a description has no #ad | On | A reminder only. The app never writes #ad into your copy and never blocks a push — it tells you which descriptions lack it, and you decide which pins need one |
 | Only post between set hours | On, 09:00–17:00 | The posting window |
 | No same product twice on one network per day | On | Prevents self-spam |
 | Require approval before pushing | Off | Extra gate before the push |

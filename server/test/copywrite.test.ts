@@ -19,12 +19,24 @@ test('markdown fences survive the first-{ to last-} slice', () => {
   assert.equal(copy.title, 'Mug');
 });
 
-test('missing " #ad" suffix is appended', () => {
+// The parser used to append " #ad" to any description lacking it, which put a
+// disclosure on posts that did not need one. Whether a pin needs the tag is the
+// seller's judgement, so the description is returned exactly as written.
+test('a description is returned as written — no #ad is added', () => {
   const copy = parsePinCopy(
-    '{"title":"Mug","desc":"Nice mug. Great gift.","keywords":["a b","c d","e f","g h","i j"]}'
+    '{"title":"Mug","desc":"Warm your mornings. Perfect for coffee lovers.","keywords":["a b","c d","e f","g h","i j"]}'
   );
   assert.ok(copy);
-  assert.ok(copy.desc.endsWith(' #ad'));
+  assert.equal(copy.desc, 'Warm your mornings. Perfect for coffee lovers.');
+  assert.doesNotMatch(copy.desc, /#ad/i);
+});
+
+test('a description that already carries #ad keeps it untouched', () => {
+  const copy = parsePinCopy(
+    '{"title":"Mug","desc":"Warm your mornings. Great gift. #ad","keywords":["a b","c d","e f","g h","i j"]}'
+  );
+  assert.ok(copy);
+  assert.equal(copy.desc, 'Warm your mornings. Great gift. #ad');
 });
 
 test('fewer than five keywords fails the contract', () => {

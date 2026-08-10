@@ -504,3 +504,29 @@ Generation is serial and each image is published as it lands, because a 30-pin
 distinct run is minutes of work and a blank screen for that long reads as a
 hang. Review shows "Generating mockups — N of M done" while it runs, and pins
 still waiting show the original artwork rather than a false one.
+
+## 13. #ad is the seller's judgement, not the app's
+
+Corrected 2026-08-08, in two passes, because the first one only did half the
+job.
+
+The original rule had the app both **write** `#ad` into every description and
+**refuse the push** if any lacked it. Both were wrong, for the same reason:
+whether a post needs a disclosure depends on whether that post promotes an
+affiliate link, and the app cannot know that. A pin about the seller's own shop
+does not need one.
+
+The gate went first — it refused the whole batch before a single network call,
+so one unlabelled description cost the other eighty-nine their push, and it
+enforced regardless of the seller's own `requireAd` setting.
+
+But the copywriter kept writing the tag: the prompt demanded the description end
+with `#ad`, and `parsePinCopy` appended it to any that did not. So the disclosure
+still appeared on every post, and removing it meant editing every pin by hand.
+The prompt now forbids the tag and the parser returns the description exactly as
+written.
+
+What remains is a reminder in two places: the inspector says when the selected
+pin's description has no `#ad`, and the push result reports how many went out
+without one. The workspace rule is relabelled to match — "Remind me when a
+description has no #ad" — since it no longer adds anything.

@@ -53,8 +53,10 @@ export function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// The #ad workspace rule: a push is blocked unless every affiliate
-// description carries #ad. Enforced at push time (increment 7); the check
+// Whether a description carries #ad. Once a hard gate — a push was refused
+// unless every description had it — now only a reminder the seller acts on,
+// because whether a given pin needs a disclosure is a judgement about that
+// pin. See DECISIONS.md §13. The check
 // lives here with the other rules.
 export function adCompliant(description: string): boolean {
   return /(^|\s)#ad(\s|$)/i.test(description);

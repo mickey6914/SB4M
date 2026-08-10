@@ -324,6 +324,7 @@ function PinGrid({
 
 function Inspector() {
   const { run } = useRun();
+  const { rules } = useWorkspace();
   const { review, dispatch } = useReview();
   const pin = review.pins[review.pin - 1];
 
@@ -421,7 +422,11 @@ function Inspector() {
       </div>
 
       <div className="rewrite-row">
-        <span className="rewrite-note">#ad added by workspace rule.</span>
+        <span className="rewrite-note">
+          {rules.requireAd && !/#ad\b/i.test(pin.desc)
+            ? 'No #ad in this description — add it if this pin promotes an affiliate link.'
+            : ''}
+        </span>
         <button
           className="btn btn-secondary btn-small"
           type="button"

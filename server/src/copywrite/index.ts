@@ -35,7 +35,9 @@ type CopywriteBody = {
 const SYSTEM = `You write Pinterest pin copy for product listings. Respond with minified JSON only, exactly this shape: {"title":...,"desc":...,"keywords":[...]}.
 Rules:
 - "title": under 60 characters, keyword-led, no emoji, Title Case.
-- "desc": exactly two short, warm sentences, and the whole string must end with " #ad".
+- "desc": exactly two short, warm sentences. Do NOT add "#ad" or any other
+  disclosure tag — whether a post needs one is the seller's judgement, made per
+  pin, and they add it themselves.
 - "keywords": exactly five lowercase Pinterest search phrases, each 2-4 words.
 No markdown fences, no commentary, nothing outside the JSON object.`;
 
@@ -59,7 +61,12 @@ export function parsePinCopy(text: string): PinCopy | null {
     ? obj.keywords.filter((k): k is string => typeof k === 'string' && k.trim() !== '').map((k) => k.trim().toLowerCase())
     : [];
   if (!title || !desc || keywords.length < 5) return null;
-  return { title, desc: desc.endsWith(' #ad') ? desc : `${desc} #ad`, keywords: keywords.slice(0, 5) };
+  // The description is returned as written. This used to append " #ad" to
+  // every description that lacked it, which put a disclosure on posts that
+  // did not need one and could not be removed without editing every pin by
+  // hand. Whether a pin needs the tag is a judgement about that pin; the app
+  // reminds, the seller decides.
+  return { title, desc, keywords: keywords.slice(0, 5) };
 }
 
 export function registerCopywriteRoutes(app: FastifyInstance) {

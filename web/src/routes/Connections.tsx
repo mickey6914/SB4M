@@ -357,7 +357,7 @@ export default function Connections() {
               checked={rules.requireAd}
               onChange={(e) => update({ requireAd: e.target.checked })}
             />
-            Add #ad to every affiliate description
+            Remind me when a description has no #ad
           </label>
           <label className="choice-row">
             <input
