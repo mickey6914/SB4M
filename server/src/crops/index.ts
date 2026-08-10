@@ -1,5 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import { CROP_SIZES, renderAll, type CropRatio, type OverlayPos } from './render.js';
+import {
+  CROP_SIZES,
+  DEFAULT_OVERLAY_SIZE,
+  isOverlaySize,
+  renderAll,
+  type CropRatio,
+  type OverlayPos,
+  type OverlaySize,
+} from './render.js';
 
 // Crop rendering route. Accepts an http(s) source (a listing image) or a
 // data: URL (a seller upload), renders the requested ratios with the overlay
@@ -18,6 +26,7 @@ type RenderBody = {
   ratios?: string[];
   overlay?: string;
   overlayPos?: string;
+  overlaySize?: string;
 };
 
 function isPrivateHost(hostname: string): boolean {
@@ -90,7 +99,10 @@ export function registerCropRoutes(app: FastifyInstance) {
       ? (req.body!.overlayPos as OverlayPos)
       : 'bottom';
 
-    const key = JSON.stringify([src.slice(0, 200), src.length, ratios, overlayText, pos]);
+    const size = isOverlaySize(req.body?.overlaySize ?? '')
+      ? (req.body!.overlaySize as OverlaySize)
+      : DEFAULT_OVERLAY_SIZE;
+    const key = JSON.stringify([src.slice(0, 200), src.length, ratios, overlayText, pos, size]);
     const hit = cache.get(key);
     if (hit) return reply.send({ ok: true, images: hit });
 
@@ -106,7 +118,7 @@ export function registerCropRoutes(app: FastifyInstance) {
       const rendered = await renderAll(
         source,
         ratios,
-        overlayText.trim() ? { text: overlayText, pos } : null
+        overlayText.trim() ? { text: overlayText, pos, size } : null
       );
       const images: Record<string, string> = {};
       for (const [ratio, buf] of Object.entries(rendered)) {

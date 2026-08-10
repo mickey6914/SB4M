@@ -7,6 +7,7 @@ import {
   ReviewProvider,
   useReview,
   type OverlayPos,
+  type OverlaySize,
 } from '../state/review';
 import { useWorkspace } from '../state/workspace';
 
@@ -123,7 +124,12 @@ function useSceneMockups(
 
 // Fetch the four rendered crops whenever the source or overlay changes,
 // debounced so typing in the overlay field doesn't re-render per keystroke.
-function useRenderedCrops(src: string | undefined, overlay: string, pos: OverlayPos) {
+function useRenderedCrops(
+  src: string | undefined,
+  overlay: string,
+  pos: OverlayPos,
+  size: OverlaySize
+) {
   const [images, setImages] = useState<Rendered | null>(null);
   useEffect(() => {
     if (!src) {
@@ -136,7 +142,7 @@ function useRenderedCrops(src: string | undefined, overlay: string, pos: Overlay
         const res = await fetch('/api/crops/render', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ src, overlay, overlayPos: pos }),
+          body: JSON.stringify({ src, overlay, overlayPos: pos, overlaySize: size }),
         });
         const json = await res.json();
         if (!cancelled && json.ok && json.images) setImages(json.images);
@@ -148,7 +154,7 @@ function useRenderedCrops(src: string | undefined, overlay: string, pos: Overlay
       cancelled = true;
       clearTimeout(t);
     };
-  }, [src, overlay, pos]);
+  }, [src, overlay, pos, size]);
   return images;
 }
 
@@ -192,7 +198,9 @@ function CropPreview({
               ) : (
                 <>
                   {src && <img src={src} alt="" className="crop-img" />}
-                  <div className={`crop-overlay crop-overlay-${review.overlayPos}`}>
+                  <div
+                    className={`crop-overlay crop-overlay-${review.overlayPos} crop-overlay-${review.overlaySize}`}
+                  >
                     {review.overlay}
                   </div>
                 </>
@@ -255,8 +263,27 @@ function PinGrid({
                     pin's render, so every card in the grid was the same picture
                     no matter which scenes the run had chosen. */}
                 {(() => {
-                  const own = review.pin === n ? cardSrc : mockups[mockupKey(pin.scene, n)] ?? product;
-                  return own ? <img src={own} alt="" className="crop-img" /> : null;
+                  // The selected card shows the server render, where the bar is
+                  // baked into the pixels. The rest showed the bare mockup with
+                  // no bar at all, so the grid could not tell you whether the
+                  // overlay read — which is the thing being judged. They now
+                  // carry a CSS bar sized by the same fractions the renderer
+                  // uses, so the row is consistent.
+                  if (review.pin === n) {
+                    return cardSrc ? <img src={cardSrc} alt="" className="crop-img" /> : null;
+                  }
+                  const own = mockups[mockupKey(pin.scene, n)] ?? product;
+                  if (!own) return null;
+                  return (
+                    <>
+                      <img src={own} alt="" className="crop-img" />
+                      <div
+                        className={`crop-overlay crop-overlay-${review.overlayPos} crop-overlay-${review.overlaySize}`}
+                      >
+                        {review.overlay}
+                      </div>
+                    </>
+                  );
                 })()}
               </div>
               <div className="pin-title">{pin.title}</div>
@@ -406,6 +433,22 @@ function Inspector() {
             </label>
           ))}
         </div>
+        {/* Bar size. Guessed at twice, wrong twice — how prominent a brand mark
+            should be is a matter of taste, so it is a setting rather than a
+            constant. The four crops above re-render as this changes. */}
+        <div className="seg" style={{ marginBottom: 10 }}>
+          {(['small', 'medium', 'large'] as OverlaySize[]).map((size) => (
+            <label key={size} className="seg-opt">
+              <input
+                type="radio"
+                name="overlay-size"
+                checked={review.overlaySize === size}
+                onChange={() => dispatch({ type: 'setOverlaySize', size })}
+              />
+              {size[0].toUpperCase() + size.slice(1)}
+            </label>
+          ))}
+        </div>
         <input
           className="input"
           type="text"
@@ -466,7 +509,7 @@ function ReviewBody({ runId }: { runId: string }) {
   const mockup = selectedScene ? mockups[mockupKey(selectedScene, review.pin)] : undefined;
   // Crops render from the scene mockup when there is one, else the raw photo.
   const src = mockup ?? product;
-  const rendered = useRenderedCrops(src, review.overlay, review.overlayPos);
+  const rendered = useRenderedCrops(src, review.overlay, review.overlayPos, review.overlaySize);
   const flagged = review.pins.filter((p) => p.flagged).length;
 
   // Build the outgoing batch: one post per approved pin per fanned-out

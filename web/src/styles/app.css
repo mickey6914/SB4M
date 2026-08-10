@@ -728,13 +728,23 @@ html, body, #root {
   object-fit: cover;
 }
 
+/* Preview bar. Sized in cqw — percent of the FRAME's width — so it matches the
+   proportions the server bakes into the real asset. It was a flat 11px, which
+   meant the preview and the finished pin disagreed at every size, and the
+   preview is what the overlay gets judged by.
+
+   Server: bar height = 8.5 / 11.5 / 15.5% of width, type = 46% of the bar. */
 .crop-overlay {
   position: absolute;
   left: 0;
   right: 0;
   background: var(--color-accent);
   color: #fff;
-  font-size: 11px;
+  font-size: 5.3cqw;
+  min-height: 11.5cqw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -743,6 +753,27 @@ html, body, #root {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Frames are the container the bar measures itself against. */
+.crop-frame,
+.pin-media {
+  container-type: inline-size;
+}
+
+.crop-overlay-small {
+  font-size: 3.9cqw;
+  min-height: 8.5cqw;
+}
+
+.crop-overlay-medium {
+  font-size: 5.3cqw;
+  min-height: 11.5cqw;
+}
+
+.crop-overlay-large {
+  font-size: 7.1cqw;
+  min-height: 15.5cqw;
 }
 
 .crop-overlay-top {

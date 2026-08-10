@@ -17,6 +17,8 @@ export type Pin = {
   scene: string; // the inspiration scene this pin's mockup is built in
 };
 
+export type OverlaySize = 'small' | 'medium' | 'large';
+
 export type OverlayPos = 'top' | 'middle' | 'bottom';
 
 export type ReviewState = {
@@ -27,6 +29,7 @@ export type ReviewState = {
   product: string;
   overlay: string;
   overlayPos: OverlayPos;
+  overlaySize: OverlaySize;
   writing: boolean;
   writeError: string;
   shown: number; // pin cards revealed in the grid
@@ -65,6 +68,7 @@ export function seedReview(run: RunState): ReviewState {
     product: run.listing?.description ?? '',
     overlay: 'EXPRESS ART VIBE',
     overlayPos: 'bottom',
+    overlaySize: 'medium',
     writing: false,
     writeError: '',
     shown: Math.min(6, pins.length),
@@ -80,6 +84,7 @@ type Action =
   | { type: 'toggleKeyword'; index: number }
   | { type: 'setOverlay'; text: string }
   | { type: 'setOverlayPos'; pos: OverlayPos }
+  | { type: 'setOverlaySize'; size: OverlaySize }
   | { type: 'approve' }
   | { type: 'reject' }
   | { type: 'approveAll' }
@@ -121,6 +126,8 @@ function reducer(state: ReviewState, action: Action): ReviewState {
       return { ...state, overlay: action.text };
     case 'setOverlayPos':
       return { ...state, overlayPos: action.pos };
+    case 'setOverlaySize':
+      return { ...state, overlaySize: action.size };
     case 'approve':
       return {
         ...state,

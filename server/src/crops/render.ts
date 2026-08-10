@@ -26,13 +26,25 @@ function escapeXml(s: string): string {
 }
 
 // Bar height as a fraction of the crop's width, so the band reads the same at
-// every ratio. Raised from 0.085 after the first real run: the old bar was
-// legible at full size but vanished in a Pinterest feed, which is where pins
-// are actually seen — a brand mark nobody can read is not doing its job.
-const BAR_FRACTION = 0.115;
+// every ratio. How big it should be turned out to be a matter of taste rather
+// than a number to derive — it was guessed at twice and wrong twice — so it is
+// the seller's setting now. `small` is the original, `medium` the default.
+export type OverlaySize = 'small' | 'medium' | 'large';
 
-export function barHeightFor(width: number): number {
-  return Math.round(width * BAR_FRACTION);
+export const BAR_FRACTIONS: Record<OverlaySize, number> = {
+  small: 0.085,
+  medium: 0.115,
+  large: 0.155,
+};
+
+export const DEFAULT_OVERLAY_SIZE: OverlaySize = 'medium';
+
+export function isOverlaySize(raw: string): raw is OverlaySize {
+  return raw === 'small' || raw === 'medium' || raw === 'large';
+}
+
+export function barHeightFor(width: number, size: OverlaySize = DEFAULT_OVERLAY_SIZE): number {
+  return Math.round(width * BAR_FRACTIONS[size]);
 }
 
 // SVG <text> neither wraps nor shrinks: a label wider than the bar simply
@@ -76,9 +88,10 @@ function labelWidth(label: string, fontSize: number): number {
 // first, and only truncate once shrinking has hit its floor.
 export function fitLabel(
   text: string,
-  width: number
+  width: number,
+  size: OverlaySize = DEFAULT_OVERLAY_SIZE
 ): { label: string; fontSize: number; truncated: boolean } {
-  const barHeight = barHeightFor(width);
+  const barHeight = barHeightFor(width, size);
   const natural = Math.round(barHeight * NATURAL_TYPE_FRACTION);
   const floor = minTypeSizeFor(width);
   const maxWidth = width * SIDE_PADDING;
@@ -103,9 +116,13 @@ export function fitLabel(
 // type scale proportional to the crop's width so the bar reads the same at
 // every ratio. Archivo is the design's face; the SVG rasterizer falls back
 // to a bold sans where Archivo isn't installed on the host.
-export function overlaySvg(width: number, text: string): Buffer {
-  const barHeight = barHeightFor(width);
-  const { label, fontSize } = fitLabel(text, width);
+export function overlaySvg(
+  width: number,
+  text: string,
+  size: OverlaySize = DEFAULT_OVERLAY_SIZE
+): Buffer {
+  const barHeight = barHeightFor(width, size);
+  const { label, fontSize } = fitLabel(text, width, size);
   return Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${barHeight}">
       <rect width="${width}" height="${barHeight}" fill="${ACCENT}"/>
@@ -126,7 +143,7 @@ export function overlayTop(pos: OverlayPos, cropHeight: number, barHeight: numbe
 export async function renderCrop(
   source: Buffer,
   ratio: CropRatio,
-  overlay: { text: string; pos: OverlayPos } | null
+  overlay: { text: string; pos: OverlayPos; size?: OverlaySize } | null
 ): Promise<Buffer> {
   const { width, height } = CROP_SIZES[ratio];
   const base = sharp(source)
@@ -145,8 +162,9 @@ export async function renderCrop(
     return base.jpeg({ quality: 88 }).toBuffer();
   }
 
-  const bar = overlaySvg(width, overlay.text);
-  const barHeight = barHeightFor(width);
+  const size = overlay.size ?? DEFAULT_OVERLAY_SIZE;
+  const bar = overlaySvg(width, overlay.text, size);
+  const barHeight = barHeightFor(width, size);
   return base
     .composite([{ input: bar, left: 0, top: overlayTop(overlay.pos, height, barHeight) }])
     .jpeg({ quality: 88 })
@@ -156,7 +174,7 @@ export async function renderCrop(
 export async function renderAll(
   source: Buffer,
   ratios: CropRatio[],
-  overlay: { text: string; pos: OverlayPos } | null
+  overlay: { text: string; pos: OverlayPos; size?: OverlaySize } | null
 ): Promise<Record<string, Buffer>> {
   const out: Record<string, Buffer> = {};
   await Promise.all(

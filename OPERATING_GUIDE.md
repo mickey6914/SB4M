@@ -105,7 +105,7 @@ Ten templates, each applying your artwork to a product:
 | --- | --- |
 | T-shirt · Sweatshirt | Worn outdoors, autumn park, friends |
 | T-shirt flat lay · Sweatshirt flat lay | Garment laid flat, shot straight down |
-| Coffee cup | Held close at a kitchen table, morning light, pets behind |
+| Coffee cup | Held close at a kitchen table |
 | Pillow | On a linen sofa in a sunlit room |
 | Invitation card | Standing on a table with a kraft envelope |
 | Wall art | Framed on a beige gallery wall |
@@ -118,6 +118,10 @@ Ten templates, each applying your artwork to a product:
 
 How many images actually get generated is your choice, on the previous step —
 see "A different mockup for every pin" below.
+
+Each pin varies its own shot — camera angle, lighting and what else is in the
+room — so a run of thirty does not read as three pictures repeated. Flat lays
+and sticker sheets keep their overhead camera and vary the surface instead.
 
 Every template generates at **2:3**, Pinterest's native pin. That is not
 cosmetic: all four crops are portrait or square, so a landscape mockup loses
@@ -144,6 +148,10 @@ computer except the AI calls.
 Each pin has an inspector:
 
 - Edit **title**, **description** and **overlay text** by hand
+- Set the overlay's **position** (top / middle / bottom) and **size** (small /
+  medium / large). Small is the original bar, medium the default; large is
+  worth trying if the brand mark disappears in a Pinterest feed. The four crops
+  re-render as you change it
 - **Rewrite with AI** if the copy isn't right
 - **Approve pin** / **Reject**
 
