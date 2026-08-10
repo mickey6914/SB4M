@@ -55,6 +55,22 @@ export default function Dashboard() {
     }
   };
 
+  // Distinct failure reasons with counts. One expired token can fail every
+  // post in a batch; listing thirty identical lines would bury the one fact
+  // that matters.
+  const failureReasons = (() => {
+    if (!batch) return [] as { reason: string; count: number }[];
+    const counts = new Map<string, number>();
+    for (const post of batch.posts) {
+      if (post.state !== 'failed') continue;
+      const reason = post.error?.trim() || 'Content360 did not say why.';
+      counts.set(reason, (counts.get(reason) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+  })();
+
   const byNetwork = batch
     ? (['pinterest', 'facebook', 'instagram'] as const)
         .map((network) => {
@@ -260,9 +276,25 @@ export default function Dashboard() {
                     ))}
                   </tbody>
                 </table>
+                {/* Why a post failed, not just that it did. The reason has
+                    always been carried on the post — the push records it and
+                    the sync refreshes it from Content360 — and was then never
+                    shown, so the only way to learn that a token had expired was
+                    to go and read Content360's own dashboard. Grouped, because
+                    thirty posts failing for one reason is one problem. */}
+                {failureReasons.length > 0 && (
+                  <div className="dash-failures">
+                    {failureReasons.map(({ reason, count }) => (
+                      <div key={reason} className="dash-failure">
+                        <span className="dash-failure-count">{count}</span>
+                        <span>{reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="rail-note" style={{ marginTop: 14 }}>
                   {batch.counts.failed > 0
-                    ? 'Failed posts stay in this batch — reopen them in review and re-push.'
+                    ? 'Failed posts stay in this batch — fix the cause above, then Retry failed.'
                     : 'Content360 owns publishing from here; states update as it publishes.'}
                 </div>
               </>

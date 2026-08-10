@@ -48,6 +48,11 @@ Where you land. Three things live here:
 Below that, **Waiting on you** shows the current run's state and the Content360
 sync panel, including **Retry failed** for posts that didn't make it.
 
+**When posts fail, the sync panel says why** — Content360's own reason, grouped
+by cause with a count, because one expired token can fail an entire batch and
+that is one problem rather than thirty. "Access token has expired. Reconnect
+your account." is the common one; fix the cause, then **Retry failed**.
+
 ### New run — step 1: Where's the product?
 
 Paste an Etsy, Shopify or Amazon product link.

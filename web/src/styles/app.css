@@ -1416,3 +1416,34 @@ html, body, #root {
 .pin-check input {
   margin: 0;
 }
+
+
+/* Why posts failed, on the dashboard's sync card. */
+.dash-failures {
+  margin-top: 14px;
+  border-top: 2px solid var(--color-divider);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-accent-800);
+}
+
+.dash-failure-count {
+  flex: none;
+  min-width: 22px;
+  text-align: center;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 5px;
+}
