@@ -385,6 +385,11 @@ function Inspector() {
           onChange={(e) => dispatch({ type: 'setLink', url: e.target.value })}
           placeholder="https://expressartvibe.etsy.com/listing/..."
         />
+        <div className="rail-note" style={{ marginTop: 6 }}>
+          Pinterest carries this as the pin's destination. Facebook and Instagram
+          have no link field, so it is added to the end of the caption — clickable
+          on Facebook, visible but not clickable on Instagram.
+        </div>
         <button
           className="btn btn-ghost"
           type="button"
@@ -546,6 +551,15 @@ function ReviewBody({ runId }: { runId: string }) {
   const rendered = useRenderedCrops(src, review.overlay, review.overlayPos, review.overlaySize);
   const flagged = review.pins.filter((p) => p.flagged).length;
 
+  // Facebook turns a bare URL in the body into a clickable link. Instagram does
+  // not — captions there are never clickable, whatever they contain — but the
+  // address is still visible and copyable, which beats no address at all.
+  const captionFor = (pin: { desc: string; link: string }, network: string) => {
+    if (network === 'pinterest' || !pin.link.trim()) return pin.desc;
+    if (pin.desc.includes(pin.link.trim())) return pin.desc;
+    return `${pin.desc}\n\n${pin.link.trim()}`;
+  };
+
   // Build the outgoing batch: one post per approved pin per fanned-out
   // network, each carrying the asset at that network's crop.
   const push = async () => {
@@ -651,7 +665,11 @@ function ReviewBody({ runId }: { runId: string }) {
         localId: `${runId}#${n}#${network}`,
         network,
         scheduledAt: slots.get(`${i + 1}#${network}`)!,
-        caption: pin.desc,
+        // Pinterest carries the destination as a real field on the post, so
+        // its caption stays clean. Facebook and Instagram have no such field —
+        // the only way a viewer ever sees the link is in the caption text, so
+        // it goes on the end there.
+        caption: captionFor(pin, network),
         assetUrl: assets.get(n)![networkCrop[network]],
         // The account chosen in Connections. Sent explicitly so a workspace
         // with two accounts on one network never depends on list order.

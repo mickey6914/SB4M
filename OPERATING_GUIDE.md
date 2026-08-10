@@ -153,7 +153,11 @@ Each pin has an inspector:
 
 - **Destination link** — where the pin sends a click. Seeded from the run's
   listing URL, and blank on an upload-based run, so set it here. **Use this
-  link for every pin** copies it across the batch
+  link for every pin** copies it across the batch. It reaches every network,
+  but not the same way: Pinterest carries it as the pin's real destination
+  field, while Facebook and Instagram have no such field, so it is appended to
+  the caption — clickable on Facebook, visible but not clickable on Instagram,
+  which never makes caption URLs clickable
 - Edit **title**, **description** and **overlay text** by hand
 - Set the overlay's **position** (top / middle / bottom) and **size** (small /
   medium / large). Small is the original bar, medium the default; large is
