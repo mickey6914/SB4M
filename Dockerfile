@@ -24,6 +24,17 @@ RUN npm prune --omit=dev
 
 FROM node:22-slim AS runtime
 
+# A font for the overlay band. The crop renderer draws "EXPRESS ART VIBE" as
+# SVG text, and the SVG rasterizer needs a real font on the host to set it.
+# The slim image ships with none, so every server-rendered crop — the selected
+# pin's previews AND every image pushed to Content360 — got a microscopic row
+# of empty boxes instead of words, while the browser-drawn bands on the other
+# pins looked fine. DejaVu Sans Bold is the face the renderer's text-fitting is
+# measured against (see ADVANCE_EM in server/src/crops/render.ts).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends fonts-dejavu-core fontconfig \
+  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 ENV NODE_ENV=production
 
