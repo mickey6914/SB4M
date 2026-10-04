@@ -24,7 +24,19 @@ export type WorkspaceRules = {
   // happens to list first is not good enough. Labels are stored beside the
   // ids for the same reason the board name is.
   accountByNetwork: Partial<Record<NetworkKey, { id: number; label: string }>>;
+  // The copywriting instruction every run sends to Claude with the hero
+  // image, editable here so it can change without a deploy. {product_type} is
+  // filled from productType.
+  copyPrompt: string;
+  productType: string;
 };
+
+// The seller's own prompt, verbatim — the server holds the same text as its
+// fallback.
+export const DEFAULT_COPY_PROMPT =
+  'Act as an Etsy Product Listing Specialist and provide 3 seo keyword optimized title suggestions based on the product style and design, and not the current title for this product; a product description, and 13 tags that will attract buyers for this {product_type} design.';
+
+export const DEFAULT_PRODUCT_TYPE = 'acrylic faux stained glass wall art';
 
 export type NetworkKey = 'pinterest' | 'facebook' | 'instagram';
 
@@ -40,6 +52,8 @@ export const DEFAULT_RULES: WorkspaceRules = {
   pinterestBoardId: '',
   pinterestBoardName: '',
   accountByNetwork: {},
+  copyPrompt: DEFAULT_COPY_PROMPT,
+  productType: DEFAULT_PRODUCT_TYPE,
 };
 
 const STORAGE_KEY = 'eav.workspaceRules';

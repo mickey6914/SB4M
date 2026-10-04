@@ -1,6 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import StepRail from '../../components/StepRail';
-import { assetCount, CROPS, useRun, type Crop, type FanOut, type Volume as Vol } from '../../state/run';
+import {
+  assetCount,
+  CROPS,
+  STYLE_SUGGESTIONS,
+  styleHas,
+  toggleStylePhrase,
+  useRun,
+  type Crop,
+  type FanOut,
+  type Volume as Vol,
+} from '../../state/run';
 
 const VOLUMES: { value: Vol; label: string; timing: string }[] = [
   { value: 3, label: 'Quick test', timing: '~20 seconds' },
@@ -25,8 +35,6 @@ function mockupMinutes(images: number): string {
   return `${Math.round(secs / 60)} minutes`;
 }
 
-const SUGGESTIONS = ['No people', 'Minimalist white', 'Fall colours', 'Bright & airy', 'Holiday'];
-
 const FAN_OUT: { value: FanOut; label: string }[] = [
   { value: 'pinterest', label: 'Pinterest only' },
   { value: 'pinterest_facebook', label: 'Pinterest + Facebook' },
@@ -44,11 +52,10 @@ export default function Volume() {
   const { run, dispatch } = useRun();
   const navigate = useNavigate();
 
-  const appendSuggestion = (tag: string) => {
-    const current = run.styleDirection.trim();
-    if (current.toLowerCase().includes(tag.toLowerCase())) return;
-    dispatch({ type: 'setStyleDirection', text: current ? `${current}, ${tag.toLowerCase()}` : tag });
-  };
+  // A chip toggles its phrase in and out of the text field; it used to only
+  // append, so a chip clicked by mistake had to be deleted by hand.
+  const toggleSuggestion = (tag: string) =>
+    dispatch({ type: 'setStyleDirection', text: toggleStylePhrase(run.styleDirection, tag) });
 
   return (
     <>
@@ -123,11 +130,20 @@ export default function Volume() {
               style={{ width: '100%', fontSize: '14.5px' }}
             />
             <div className="tag-row">
-              {SUGGESTIONS.map((tag) => (
-                <button key={tag} type="button" className="tag tag-outline tag-button" onClick={() => appendSuggestion(tag)}>
-                  {tag}
-                </button>
-              ))}
+              {STYLE_SUGGESTIONS.map((tag) => {
+                const on = styleHas(run.styleDirection, tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={on}
+                    className={on ? 'style-chip is-on' : 'style-chip'}
+                    onClick={() => toggleSuggestion(tag)}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

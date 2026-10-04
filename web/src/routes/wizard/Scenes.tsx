@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import StepRail from '../../components/StepRail';
 import Tile from '../../components/Tile';
-import { assetCount, SCENE_CATALOG, useRun } from '../../state/run';
+import { assetCount, MOCKUP_CATALOG, SCENE_CATALOG, useRun } from '../../state/run';
 
 export default function Scenes() {
   const { run, dispatch } = useRun();
@@ -25,8 +25,9 @@ export default function Scenes() {
           <div>
             <h1 className="wizard-h1">Choose three scenes.</h1>
             <p className="page-lead" style={{ maxWidth: '40em', margin: 0 }}>
-              These are the aesthetics the AI copies — not the product. Three is the sweet spot:
-              enough variety for thirty pins, tight enough to look like one brand.
+              Pick what the design goes on, then the scenes it's shown in. Pins take the scenes in
+              turn — pin 1 the first, pin 2 the second — so a run reads as one brand without
+              repeating itself.
             </p>
           </div>
           <div className="scenes-header-actions">
@@ -37,6 +38,24 @@ export default function Scenes() {
               Show 50 more
             </button>
           </div>
+        </div>
+        <div className="rail-kicker" style={{ marginBottom: 10 }}>
+          Mockup — what the design goes on
+        </div>
+        <div className="mockup-grid">
+          {MOCKUP_CATALOG.map((label) => (
+            <Tile
+              key={label}
+              selected={run.mockup === label}
+              onSelect={() => dispatch({ type: 'setMockup', mockup: label })}
+              aspect="4 / 3"
+              mediaLabel={label}
+              caption={label}
+            />
+          ))}
+        </div>
+        <div className="rail-kicker" style={{ marginBottom: 10 }}>
+          Scenes — pick three
         </div>
         <div className="scene-grid">
           {SCENE_CATALOG.map((caption, i) => {
@@ -61,7 +80,8 @@ export default function Scenes() {
             Back
           </button>
           <span className="wizard-status">
-            {run.scenes.length} of 3 scenes chosen · {run.volume} pins · {assetCount(run)} assets
+            {run.mockup} · {run.scenes.length} of 3 scenes chosen · {run.volume} pins ·{' '}
+            {assetCount(run)} assets
           </span>
         </div>
       </section>

@@ -178,13 +178,18 @@ export default function Product() {
               );
             })}
           </div>
-          {run.uploads.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <button className="btn btn-primary" type="button" onClick={() => navigate('/run/hero')}>
-                Continue with {run.uploads.length} photo{run.uploads.length > 1 ? 's' : ''}
-              </button>
-            </div>
-          )}
+          <div className="upload-continue">
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={run.uploads.length === 0}
+              title={run.uploads.length === 0 ? 'Drop a product photo first' : undefined}
+              onClick={() => navigate('/run/hero')}
+            >
+              Continue with uploaded photos
+            </button>
+            <span className="upload-continue-note">Next: pick the hero image</span>
+          </div>
         </div>
         <div className="rail-right">
           <div className="rail-kicker">Recent links</div>

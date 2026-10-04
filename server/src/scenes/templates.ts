@@ -136,6 +136,33 @@ export function variationFor(variant: number, overhead = false): string {
   ].join(' ');
 }
 
+// The full prompt for one pin: the template, then the scene the seller chose
+// for this pin, then the per-variant shot. The scene comes from the wizard's
+// "Scenes — pick three" step and rotates across pins (pin 1 scene A, pin 2
+// scene B, …), so a run on one mockup type still reads as several different
+// settings. It is phrased to override any room the template itself describes.
+// The variation is NOT added on top of a chosen scene's camera — it only
+// moves light and styling there — because the scene already differs per pin.
+export type MockupPromptOptions = {
+  variant?: number;
+  scene?: string;
+  styleDirection?: string;
+};
+
+export function mockupPrompt(template: MockupTemplate, opts: MockupPromptOptions = {}): string {
+  const parts = [template.prompt];
+  const scene = opts.scene?.trim();
+  if (scene && scene.toLowerCase() !== template.label.toLowerCase()) {
+    parts.push(
+      `Set the shot in this scene, in place of any setting described above: ${scene}. The ${template.label.toLowerCase()} with the artwork stays the subject.`
+    );
+  }
+  const style = opts.styleDirection?.trim();
+  if (style) parts.push(`Style direction: ${style}.`);
+  if (opts.variant && opts.variant > 0) parts.push(variationFor(opts.variant, template.overhead));
+  return parts.join(' ');
+}
+
 export const MOCKUP_TEMPLATES: MockupTemplate[] = [
   {
     label: 'T-shirt',

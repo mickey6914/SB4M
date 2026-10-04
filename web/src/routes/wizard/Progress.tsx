@@ -1,27 +1,63 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { assetCount, useRun } from '../../state/run';
+import { requestCopy } from '../../state/copy';
+import { assetCount, heroImage, sceneNames, useRun } from '../../state/run';
+import { useWorkspace } from '../../state/workspace';
 
-// The four named stages users read as an explanation of where their money and
-// time go. The percentage split is simulation-only; real job checkpoints
-// replace it when the queue lands (increment 5), keeping these exact labels.
-const STAGES = [
-  { label: 'Rendering mockups in 3 scenes', until: 55 },
-  { label: 'Writing pin titles', until: 75 },
-  { label: 'Drafting SEO descriptions + keywords', until: 90 },
-  { label: 'Cutting 1:1 and 4:5 crops', until: 100 },
-];
+// The stages users read as an explanation of where their money and time go.
+// Mockups and crops are simulated here (they are generated on Review, one at
+// a time, as they land); the copy row is real — it is the call that writes
+// the whole run's titles, description and tags from the hero image.
+const MOCKUP_UNTIL = 55;
+const CROPS_FROM = 90;
+
+// One copy request per run and hero, even if this screen mounts twice
+// (StrictMode, or the seller leaving and coming back while it is in flight).
+const inFlight = new Set<string>();
 
 export default function Progress() {
-  const { run } = useRun();
+  const { run, dispatch } = useRun();
+  const { rules } = useWorkspace();
   const { id } = useParams();
   const navigate = useNavigate();
   const [progress, setProgress] = useState(0);
   const started = useRef(Date.now());
   const [elapsed, setElapsed] = useState('0 s');
 
-  // Simulated progress per the prototype (+3 every 140ms, auto-route 600ms
-  // after 100%) until real jobs replace it.
+  // Copywriting runs automatically for the whole run. The seller should never
+  // have to type a title or a description.
+  useEffect(() => {
+    if (run.copy.status === 'done' || run.copy.status === 'writing') return;
+    const image = heroImage(run);
+    const key = `${run.runNumber}|${run.hero ?? 1}`;
+    if (inFlight.has(key)) return;
+    inFlight.add(key);
+    dispatch({ type: 'setCopy', copy: { status: 'writing' } });
+    requestCopy({
+      image,
+      product: run.listing?.description,
+      mockup: run.mockup,
+      scenes: sceneNames(run),
+      styleDirection: run.styleDirection,
+      rules,
+    }).then((res) => {
+      inFlight.delete(key);
+      dispatch({
+        type: 'setCopy',
+        copy: res.ok
+          ? { status: 'done', ...res.copy }
+          : { status: 'failed', message: res.message },
+      });
+    });
+    // Deliberately once per mount: the inputs are fixed by the time the
+    // seller reaches this screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const writing = run.copy.status === 'writing' || run.copy.status === 'idle';
+
+  // Simulated progress per the prototype (+3 every 140ms), held just short of
+  // the end while the copy is still being written.
   useEffect(() => {
     const tick = setInterval(() => {
       setProgress((p) => Math.min(100, p + 3));
@@ -30,20 +66,45 @@ export default function Progress() {
     }, 140);
     return () => clearInterval(tick);
   }, []);
+  const shown = writing ? Math.min(progress, 95) : progress;
 
+  // Auto-route to review 600ms after 100% — and only once the copy has come
+  // back (or failed), so the pins arrive with their words on.
   useEffect(() => {
-    if (progress >= 100) {
+    if (shown >= 100 && !writing) {
       const t = setTimeout(() => navigate(`/review/${id ?? 15}`), 600);
       return () => clearTimeout(t);
     }
-  }, [progress, id, navigate]);
+  }, [shown, writing, id, navigate]);
 
-  const stageState = (i: number) => {
-    const start = i === 0 ? 0 : STAGES[i - 1].until;
-    if (progress >= STAGES[i].until) return 'Done';
-    if (progress >= start) return 'Working…';
-    return 'Queued';
-  };
+  const simulated = (from: number, until: number) =>
+    shown >= until ? 'Done' : shown >= from ? 'Working…' : 'Queued';
+
+  const copyState =
+    run.copy.status === 'done'
+      ? 'Done'
+      : run.copy.status === 'failed'
+        ? 'Failed'
+        : 'Writing…';
+  const applyState =
+    run.copy.status === 'done'
+      ? shown >= CROPS_FROM
+        ? 'Done'
+        : 'Queued'
+      : run.copy.status === 'failed'
+        ? 'Skipped'
+        : 'Queued';
+
+  const sceneCount = Math.max(1, run.scenes.length);
+  const stages = [
+    {
+      label: `Rendering ${run.mockup.toLowerCase()} mockups in ${sceneCount} scene${sceneCount > 1 ? 's' : ''}`,
+      state: simulated(0, MOCKUP_UNTIL),
+    },
+    { label: 'Writing 3 titles, description + 13 tags', state: copyState },
+    { label: `Applying copy to all ${run.volume} pins`, state: applyState },
+    { label: 'Cutting 1:1 and 4:5 crops', state: simulated(CROPS_FROM, 100) },
+  ];
 
   return (
     <section className="progress-page">
@@ -56,20 +117,25 @@ export default function Progress() {
         going and lands in your review queue when it's done.
       </p>
       <div className="progress-bar">
-        <div className="progress-fill" style={{ width: `${progress}%` }} />
+        <div className="progress-fill" style={{ width: `${shown}%` }} />
       </div>
       <div className="progress-meta">
-        <span>{progress}% complete</span>
+        <span>{shown}% complete</span>
         <span>{elapsed} elapsed</span>
       </div>
       <div className="stage-list">
-        {STAGES.map(({ label }, i) => (
+        {stages.map(({ label, state }) => (
           <div key={label} className="stage-row">
             <span>{label}</span>
-            <span className="stage-state">{stageState(i)}</span>
+            <span className="stage-state">{state}</span>
           </div>
         ))}
       </div>
+      {run.copy.status === 'failed' && (
+        <p className="ingest-error" style={{ marginTop: 16 }}>
+          {run.copy.message}
+        </p>
+      )}
       <div className="wizard-footer" style={{ borderTop: 0, paddingTop: 0, marginTop: 36 }}>
         <button className="btn btn-secondary" type="button" onClick={() => navigate('/')}>
           Back to dashboard

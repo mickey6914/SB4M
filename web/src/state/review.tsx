@@ -1,20 +1,21 @@
 import { createContext, useContext, useReducer, type Dispatch, type ReactNode } from 'react';
-import { SCENE_CATALOG, type Crop, type RunState } from './run';
+import { sceneNames, type Crop, type RunState } from './run';
+import { copyForPin, type RunCopyResult, type Tag } from './posts';
 
-// Review-screen state per the handoff's State Management table. Pin data is
-// seeded from the run (real listing title when one was ingested) and stays
-// illustrative until mockup generation lands in increment 5; the AI copy per
-// pin is real once the server has an Anthropic key.
+// Review-screen state per the handoff's State Management table. Pins are
+// seeded from the run's copy — written by Claude during the Generating step —
+// so every pin arrives with a title, the description and thirteen tags, and
+// the seller never has to type one.
 
-export type Keyword = { text: string; on: boolean };
+export type Keyword = Tag;
 
 export type Pin = {
   title: string;
   desc: string;
   keywords: Keyword[];
-  kwNote: string;
   flagged: boolean;
-  scene: string; // the inspiration scene this pin's mockup is built in
+  mockup: string; // what the design goes on
+  scene: string; // the scene this pin's mockup is shot in ('' when none chosen)
   // Whether this pin goes out. Approval used to be a bare count, and the push
   // took the FIRST N pins — so rejecting pin 2 and approving pin 6 still sent
   // pins 1-4. Which pins are approved is a fact about the pins.
@@ -42,6 +43,9 @@ export type ReviewState = {
   overlaySize: OverlaySize;
   writing: boolean;
   writeError: string;
+  // The three title suggestions shown under the Title field.
+  titleOptions: string[];
+  kwNote: string;
   shown: number; // pin cards revealed in the grid
 };
 
@@ -52,23 +56,25 @@ export const CROP_NETWORKS: Record<Crop, string> = {
   '9:16': 'Story / reel',
 };
 
+const RUN_COPY_NOTE = (n: number) =>
+  `Written by Claude for all ${n} pins. Untick any tag you don't want.`;
+
 export function seedReview(run: RunState): ReviewState {
-  const base = run.listing?.title ?? 'Product pin';
-  const sceneNames = run.scenes.length
-    ? run.scenes.map((s) => SCENE_CATALOG[s - 1])
-    : ['Studio'];
+  const scenes = sceneNames(run);
+  const copy = run.copy.status === 'done' ? run.copy : null;
   const pins: Pin[] = Array.from({ length: run.volume }, (_, i) => ({
-    title: `${base} — ${sceneNames[i % sceneNames.length]}`,
-    desc: '',
-    keywords: [],
-    kwNote: '',
+    // No copy yet means blank, not a placeholder: a made-up title would slip
+    // past the push's missing-copy check and go out as if it were written.
+    ...(copy ? copyForPin(copy, i) : { title: '', desc: '', keywords: [] }),
     // No keyword QA exists yet, so nothing is flagged. This used to mark every
     // fifth pin regardless of content — a mockup leftover that looked like a
     // verdict on the copy and always landed on the same card in the grid. The
     // field stays for when a real check arrives; inventing one is worse than
     // having none.
     flagged: false,
-    scene: sceneNames[i % sceneNames.length],
+    mockup: run.mockup,
+    // Each pin takes the next chosen scene in rotation.
+    scene: scenes.length ? scenes[i % scenes.length] : '',
     approved: false,
     link: run.listing?.url ?? run.link ?? '',
   }));
@@ -83,6 +89,8 @@ export function seedReview(run: RunState): ReviewState {
     overlaySize: 'medium',
     writing: false,
     writeError: '',
+    titleOptions: copy?.titles ?? [],
+    kwNote: copy ? RUN_COPY_NOTE(pins.length) : '',
     shown: Math.min(6, pins.length),
   };
 }
@@ -106,7 +114,9 @@ type Action =
   | { type: 'approveAll' }
   | { type: 'showMore' }
   | { type: 'writeStart' }
-  | { type: 'writeSuccess'; title: string; desc: string; keywords: string[] }
+  | { type: 'writeSuccess'; copy: RunCopyResult }
+  // The run's copy landed after Review opened (the seller skipped ahead).
+  | { type: 'applyRunCopy'; copy: RunCopyResult }
   | { type: 'writeFailure'; message: string }
   | { type: 'reseed'; state: ReviewState };
 
@@ -182,14 +192,30 @@ function reducer(state: ReviewState, action: Action): ReviewState {
     case 'writeStart':
       return { ...state, writing: true, writeError: '' };
     case 'writeSuccess': {
-      const next = updateSelected(state, {
-        title: action.title,
-        desc: action.desc,
-        // First three keywords pre-checked, per the contract.
-        keywords: action.keywords.map((text, i) => ({ text, on: i < 3 })),
-        kwNote: 'Written by Claude just now — 3 of 5 selected by default.',
+      // Rewrite with AI: the selected pin only.
+      const next = updateSelected(state, copyForPin(action.copy, state.pin - 1));
+      return {
+        ...next,
+        writing: false,
+        writeError: '',
+        titleOptions: action.copy.titles,
+        kwNote: `Rewritten for pin ${state.pin} just now.`,
+      };
+    }
+    case 'applyRunCopy': {
+      // Fill only pins still without copy, so nothing the seller already
+      // typed is overwritten.
+      const pins = state.pins.map((p, i) => {
+        if (p.title.trim() || p.desc.trim()) return p;
+        return { ...p, ...copyForPin(action.copy, i) };
       });
-      return { ...next, writing: false, writeError: '' };
+      return {
+        ...state,
+        pins,
+        titleOptions: action.copy.titles,
+        kwNote: RUN_COPY_NOTE(pins.length),
+        writeError: '',
+      };
     }
     case 'writeFailure':
       return { ...state, writing: false, writeError: action.message };

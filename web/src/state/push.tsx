@@ -26,6 +26,10 @@ type PushContextValue = {
   setBatch: (b: Batch | null) => void;
   pushError: string;
   setPushError: (m: string) => void;
+  // The confirmation the dashboard shows after a push, e.g. "3 pins pushed to
+  // Content360: 9 posts queued across Pinterest, Facebook and Instagram."
+  summary: string;
+  setSummary: (m: string) => void;
 };
 
 const PushContext = createContext<PushContextValue | null>(null);
@@ -33,8 +37,9 @@ const PushContext = createContext<PushContextValue | null>(null);
 export function PushProvider({ children }: { children: ReactNode }) {
   const [batch, setBatch] = useState<Batch | null>(null);
   const [pushError, setPushError] = useState('');
+  const [summary, setSummary] = useState('');
   return (
-    <PushContext.Provider value={{ batch, setBatch, pushError, setPushError }}>
+    <PushContext.Provider value={{ batch, setBatch, pushError, setPushError, summary, setSummary }}>
       {children}
     </PushContext.Provider>
   );

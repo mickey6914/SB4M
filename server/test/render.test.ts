@@ -139,3 +139,14 @@ test('an apostrophe in a real title survives as text, not markup', () => {
   assert.match(svg, /MEN&#39;S|MEN'S/);
   assert.doesNotMatch(svg, /<text[^>]*>[^<]*<(?!\/text)/);
 });
+
+// Two mockups at the same size share their JPEG header, so a key built from
+// the first 200 characters and the length handed one pin another pin's crops.
+test('crop cache keys differ for same-length sources that differ past the header', async () => {
+  const { cropCacheKey } = await import('../src/crops/index.js');
+  const header = 'data:image/jpeg;base64,' + 'A'.repeat(300);
+  const a = cropCacheKey(header + 'red', ['2:3'], 'EAV', 'bottom', 'medium');
+  const b = cropCacheKey(header + 'blu', ['2:3'], 'EAV', 'bottom', 'medium');
+  assert.notEqual(a, b);
+  assert.equal(a, cropCacheKey(header + 'red', ['2:3'], 'EAV', 'bottom', 'medium'));
+});

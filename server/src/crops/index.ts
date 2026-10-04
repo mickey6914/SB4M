@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import {
   CROP_SIZES,
@@ -82,6 +83,22 @@ async function loadSource(src: string): Promise<Buffer | null> {
 // Tiny insertion-ordered cache; Map iteration order gives us LRU-ish eviction.
 const cache = new Map<string, Record<string, string>>();
 
+// The source is identified by a hash of the whole string. It used to be the
+// first 200 characters plus the length — but two mockups at the same size share
+// their JPEG header byte for byte, so equal-length images collided and a pin was
+// handed another pin's crops. In a push, that is every post going out with the
+// same picture.
+export function cropCacheKey(
+  src: string,
+  ratios: string[],
+  overlayText: string,
+  pos: string,
+  size: string
+): string {
+  const digest = createHash('sha256').update(src).digest('base64');
+  return JSON.stringify([digest, ratios, overlayText, pos, size]);
+}
+
 export function registerCropRoutes(app: FastifyInstance) {
   app.post<{ Body: RenderBody }>('/api/crops/render', async (req, reply) => {
     const src = req.body?.src;
@@ -102,7 +119,7 @@ export function registerCropRoutes(app: FastifyInstance) {
     const size = isOverlaySize(req.body?.overlaySize ?? '')
       ? (req.body!.overlaySize as OverlaySize)
       : DEFAULT_OVERLAY_SIZE;
-    const key = JSON.stringify([src.slice(0, 200), src.length, ratios, overlayText, pos, size]);
+    const key = cropCacheKey(src, ratios, overlayText, pos, size);
     const hit = cache.get(key);
     if (hit) return reply.send({ ok: true, images: hit });
 
