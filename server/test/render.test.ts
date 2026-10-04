@@ -150,3 +150,43 @@ test('crop cache keys differ for same-length sources that differ past the header
   assert.notEqual(a, b);
   assert.equal(a, cropCacheKey(header + 'red', ['2:3'], 'EAV', 'bottom', 'medium'));
 });
+
+// The bug behind "tiny overlay text on pin 1": the deployed image had no fonts,
+// so the rasterizer drew "EXPRESS ART VIBE" as a microscopic row of empty boxes
+// — about a fifth of the bar wide — on every server-rendered crop. Real type at
+// the medium size spans well over half the bar. If this fails, the host has no
+// usable font: install one (the Dockerfile adds fonts-dejavu-core).
+test('the overlay text is set at full size, not as a row of tiny boxes', async () => {
+  const { width, height } = CROP_SIZES['2:3'];
+  const src = await sharp({ create: { width: 800, height: 1200, channels: 3, background: '#2980b9' } })
+    .png()
+    .toBuffer();
+  const out = await renderCrop(src, '2:3', { text: 'Express Art Vibe', pos: 'bottom', size: 'medium' });
+  const barHeight = barHeightFor(width, 'medium');
+  const { data, info } = await sharp(out)
+    .extract({ left: 0, top: height - barHeight, width, height: barHeight })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // Columns and rows holding white ink (the bar itself is red).
+  let left = width;
+  let right = -1;
+  let top = barHeight;
+  let bottom = -1;
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      const i = (y * info.width + x) * info.channels;
+      if (data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) {
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+  assert.ok(right > left, 'no overlay text was drawn at all');
+  const inkWidth = right - left;
+  const capHeight = bottom - top;
+  assert.ok(inkWidth > width * 0.45, `overlay text spans only ${inkWidth}px of a ${width}px bar`);
+  assert.ok(capHeight > barHeight * 0.25, `overlay letters are only ${capHeight}px tall`);
+});

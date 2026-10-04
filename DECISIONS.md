@@ -573,3 +573,24 @@ the pin's card instead of quietly showing the raw photo.
 Render depends on `SCENE_PROVIDER` and `ABACUS_API_KEY` in the Render
 environment, which this session cannot see. `GET /api/scenes/status` on the
 deployed URL reports the active provider; `npm run check:scenes` exercises it.
+
+## 15. The deployed image had no fonts
+
+Found 2026-10-04, from "the overlay on pin 1 is tiny, compressed text".
+
+The overlay band on server-rendered crops is SVG text, and the SVG rasterizer
+needs a font installed on the host. `node:22-slim` ships with none, so on Render
+"EXPRESS ART VIBE" came out as a microscopic row of empty boxes, about a fifth
+of the bar wide. It looked like a pin 1 problem only because the selected pin
+(pin 1 by default) shows the server render; the other cards draw their band in
+the browser, which has fonts. Every image pushed to Content360 is also
+server-rendered, so every pushed post carried the broken band.
+
+None of the earlier guesses were right: this wasn't sizing before the image
+loaded, and it wasn't an uninitialised Small/Medium/Large value. It never
+showed up locally because development machines have fonts.
+
+The Dockerfile now installs `fonts-dejavu-core`. DejaVu Sans Bold is the face
+`fitLabel` was already measured against. A render test asserts the text spans
+more than half the bar. Verified inside `node:22-slim` itself: the test fails
+without the font and passes with it.
