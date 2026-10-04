@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { heroImages, useRun } from '../state/run';
+import { heroImages, useNewRun, useRun } from '../state/run';
 import { useWorkspace } from '../state/workspace';
 
 // The cross-network calendar, README section 8: Monday-start month grid,
@@ -37,8 +36,8 @@ function iso(d: Date): string {
 
 export default function Calendar() {
   const { run } = useRun();
+  const newRun = useNewRun();
   const { rules } = useWorkspace();
-  const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [scheduleError, setScheduleError] = useState('');
 
@@ -166,7 +165,7 @@ export default function Calendar() {
           The cross-network month fills in when a run finishes: Pinterest, Facebook and Instagram
           posts for the same product on one grid, with gap detection and sync state.
         </p>
-        <button className="btn btn-primary" type="button" onClick={() => navigate('/run/product')}>
+        <button className="btn btn-primary" type="button" onClick={() => newRun()}>
           Start a run
         </button>
       </section>
@@ -203,7 +202,7 @@ export default function Calendar() {
               Instagram
             </span>
           </div>
-          <button className="btn btn-primary" type="button" onClick={() => navigate('/run/product')}>
+          <button className="btn btn-primary" type="button" onClick={() => newRun()}>
             Fill the gap
           </button>
         </div>

@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { usePush } from '../state/push';
-import { assetCount, CROPS, heroImages, SCENE_CATALOG, useRun, type Crop } from '../state/run';
+import { requestCopy } from '../state/copy';
+import {
+  buildPosts,
+  missingCopyMessage,
+  networksFor,
+  NETWORK_CROP,
+  pinsMissingCopy,
+  pushSummary,
+  TAG_TOTAL,
+} from '../state/posts';
+import { assetCount, CROPS, heroImage, useRun, type Crop } from '../state/run';
 import {
   CROP_NETWORKS,
   ReviewProvider,
   useReview,
+  type Pin,
   type OverlayPos,
   type OverlaySize,
 } from '../state/review';
@@ -37,12 +48,18 @@ type Rendered = Record<string, string>;
 // instance compete with itself for memory while sharp was compositing, and a
 // failure there was invisible: the UI quietly showed the untouched photo under
 // a caption still claiming a scene. Failures are now surfaced, not swallowed.
-// A job is one mockup to generate: which template, and the key it is stored
-// under. With one image per template the key IS the template, so every pin on
-// that template shares it. With one per pin the key carries the pin number,
-// which also becomes the `variant` the server folds into its cache key — the
-// only thing stopping two pins collapsing onto one generation.
-type MockupJob = { key: string; scene: string; variant?: string };
+// A job is one mockup to generate: the mockup type the design goes on, the
+// scene it is shot in, and the key it is stored under. With one image per
+// scene the key is mockup + scene, so pins sharing a scene share it. With one
+// per pin the key carries the pin number, which also becomes the `variant`
+// the server folds into its cache key — the only thing stopping two pins
+// collapsing onto one generation.
+type MockupJob = { key: string; mockup: string; scene: string; variant?: string };
+
+function mockupKeyFor(pin: Pick<Pin, 'mockup' | 'scene'>, n: number, distinct: boolean): string {
+  const base = `${pin.mockup}|${pin.scene}`;
+  return distinct ? `${base}#${n}` : base;
+}
 
 function useSceneMockups(
   product: string | undefined,
@@ -50,29 +67,24 @@ function useSceneMockups(
   styleDirection: string
 ) {
   const [mockups, setMockups] = useState<Record<string, string>>({});
+  // Why each failed mockup failed, by key — shown on that pin's card rather
+  // than silently swapping in the raw photo.
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState('');
   const [done, setDone] = useState(0);
-  const signature = jobs.map((j) => `${j.key}\u0000${j.scene}\u0000${j.variant ?? ''}`).join('|');
+  const signature = JSON.stringify(jobs);
 
   useEffect(() => {
-    const wanted: MockupJob[] = signature
-      ? signature.split('|').map((row) => {
-          const [key, scene, variant] = row.split('\u0000');
-          return { key, scene, variant: variant || undefined };
-        })
-      : [];
-    if (!product || wanted.length === 0) {
-      setMockups({});
-      setFailure('');
-      setDone(0);
-      return;
-    }
+    const wanted: MockupJob[] = JSON.parse(signature);
+    setMockups({});
+    setErrors({});
+    setFailure('');
+    setDone(0);
+    if (!product || wanted.length === 0) return;
     let cancelled = false;
     (async () => {
-      setFailure('');
-      setDone(0);
       const found: Record<string, string> = {};
-      let firstError = '';
+      const failed: Record<string, string> = {};
       for (const job of wanted) {
         if (cancelled) return;
         try {
@@ -80,6 +92,7 @@ function useSceneMockups(
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+              mockup: job.mockup,
               scene: job.scene,
               styleDirection,
               product,
@@ -88,26 +101,24 @@ function useSceneMockups(
           });
           const json = await res.json();
           if (json.ok && json.image) found[job.key] = json.image;
-          else if (!firstError)
-            firstError = json.message || `The server refused the "${job.scene}" mockup.`;
+          else failed[job.key] = json.message || `The server refused the ${job.mockup} mockup.`;
         } catch {
-          if (!firstError) firstError = 'Could not reach the server to build the mockups.';
+          failed[job.key] = 'Could not reach the server to build the mockups.';
         }
         if (cancelled) return;
         // Publish each one as it lands rather than making the seller wait for
         // the whole set — on a 30-pin run that is minutes of staring at nothing.
         setMockups({ ...found });
+        setErrors({ ...failed });
         setDone((n) => n + 1);
       }
       if (cancelled) return;
-      const missing = wanted.filter((j) => !found[j.key]);
+      const missing = Object.keys(failed);
       setFailure(
         missing.length
           ? `${missing.length} of ${wanted.length} mockup${
               wanted.length > 1 ? 's' : ''
-            } could not be generated${
-              firstError ? ` — ${firstError}` : '.'
-            } Showing your original artwork for those.`
+            } could not be generated — ${failed[missing[0]]}`
           : ''
       );
     })();
@@ -119,7 +130,7 @@ function useSceneMockups(
   // total is 0 when there is nothing to generate FROM. Without this the banner
   // sat at "0 of 30" forever on a Review opened with no run behind it — the
   // effect returns early for want of a product and never counts anything.
-  return { mockups, failure, done, total: product && jobs.length ? jobs.length : 0 };
+  return { mockups, errors, failure, done, total: product && jobs.length ? jobs.length : 0 };
 }
 
 // Which of the accounts this run will post to are no longer authorized.
@@ -206,12 +217,14 @@ function CropPreview({
   src,
   rendered,
   hasScene,
+  sceneError,
 }: {
   src?: string;
   rendered: Rendered | null;
   // Whether what is on screen really is a scene mockup. The caption used to
   // assert one unconditionally, including when generating it had failed.
   hasScene: boolean;
+  sceneError?: string;
 }) {
   const { review } = useReview();
   const pin = review.pins[review.pin - 1];
@@ -222,14 +235,16 @@ function CropPreview({
           <div className="page-kicker" style={{ marginBottom: 4 }}>
             All four crops · Pin {review.pin}
           </div>
-          <div className="crop-panel-title">{pin.title}</div>
+          <div className="crop-panel-title">{pin.title || 'No title yet'}</div>
         </div>
         <div className="crop-panel-note">
           Overlay sits at the {review.overlayPos} of every crop — re-placed per ratio, never
           sliced.{' '}
           {hasScene
-            ? `Scene: ${pin.scene} · your product photo is composited unaltered.`
-            : 'No scene background — showing your original photo unaltered.'}
+            ? `${pin.mockup}${pin.scene ? ` · ${pin.scene}` : ''} mockup.`
+            : sceneError
+              ? `The ${pin.mockup.toLowerCase()} mockup failed — ${sceneError} Showing your original artwork.`
+              : 'Mockup still generating — showing your original artwork for now.'}
         </div>
       </div>
       <div className="crop-panel-body">
@@ -261,32 +276,41 @@ function CropPreview({
 }
 
 function PinGrid({
-  src,
   rendered,
   networks,
   mockups,
+  errors,
   product,
   mockupKey,
 }: {
-  src?: string;
   rendered: Rendered | null;
   networks: string[];
-  // Per-scene backgrounds, so a card can show its own rather than the
-  // selected pin's, and the raw photo to fall back to when a scene failed.
+  // Per-pin mockups, so a card can show its own rather than the selected
+  // pin's, and why any failed.
   mockups: Record<string, string>;
+  errors: Record<string, string>;
   product?: string;
   // How a pin finds its own image. Depends on whether the run generates one
-  // mockup per template or one per pin, so it is passed in rather than guessed.
-  mockupKey: (scene: string, pinNumber: number) => string;
+  // mockup per scene or one per pin, so it is passed in rather than guessed.
+  mockupKey: (pin: Pin, pinNumber: number) => string;
 }) {
   const { review, dispatch } = useReview();
   const hidden = review.pins.length - review.shown;
-  const cardSrc = rendered?.[review.crop] ?? src;
+  const included = review.pins.slice(0, review.shown).filter((p) => p.approved).length;
   return (
     <>
       <div className="pin-grid">
         {review.pins.slice(0, review.shown).map((pin, i) => {
           const n = i + 1;
+          const key = mockupKey(pin, n);
+          const own = mockups[key];
+          const error = errors[key];
+          // The selected card shows the server render, where the bar is baked
+          // into the pixels — once it exists. Every other card, and the
+          // selected one until its render lands, carries a CSS bar sized by
+          // the same fractions the renderer uses, so the band is on every card.
+          const baked = review.pin === n && own && rendered?.[review.crop];
+          const image = baked || own || (error ? undefined : product);
           return (
             <div
               key={n}
@@ -301,50 +325,54 @@ function PinGrid({
                 }
               }}
             >
-              {/* Approve here, without stepping through every pin. Approval used
-                  to be a bare count and the push took the first N pins, so a
-                  rejected pin still went out and an approved one further down
-                  did not. */}
-              <label
-                className={pin.approved ? 'pin-check is-on' : 'pin-check'}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={pin.approved}
-                  onChange={() => dispatch({ type: 'toggleApproved', pin: n })}
-                />
-                {pin.approved ? 'Approved' : 'Include'}
-              </label>
               <div className="pin-media" style={{ aspectRatio: CROP_RATIOS[review.crop] }}>
-                {/* Each card shows ITS OWN scene. It used to show the selected
-                    pin's render, so every card in the grid was the same picture
-                    no matter which scenes the run had chosen. */}
-                {(() => {
-                  // The selected card shows the server render, where the bar is
-                  // baked into the pixels. The rest showed the bare mockup with
-                  // no bar at all, so the grid could not tell you whether the
-                  // overlay read — which is the thing being judged. They now
-                  // carry a CSS bar sized by the same fractions the renderer
-                  // uses, so the row is consistent.
-                  if (review.pin === n) {
-                    return cardSrc ? <img src={cardSrc} alt="" className="crop-img" /> : null;
-                  }
-                  const own = mockups[mockupKey(pin.scene, n)] ?? product;
-                  if (!own) return null;
-                  return (
-                    <>
-                      <img src={own} alt="" className="crop-img" />
-                      <div
-                        className={`crop-overlay crop-overlay-${review.overlayPos} crop-overlay-${review.overlaySize}`}
-                      >
-                        {review.overlay}
-                      </div>
-                    </>
-                  );
-                })()}
+                {image && <img src={image} alt="" className="crop-img" />}
+                {/* A failed mockup says so, on the card, instead of quietly
+                    showing the untouched photo under a mockup caption. */}
+                {error && (
+                  <div className="pin-failed">
+                    <strong>Mockup failed</strong>
+                    <span>{error}</span>
+                    <span>This pin will push your original artwork unless you regenerate.</span>
+                  </div>
+                )}
+                {!baked && (
+                  <div
+                    className={`crop-overlay crop-overlay-${review.overlayPos} crop-overlay-${review.overlaySize}`}
+                  >
+                    {review.overlay}
+                  </div>
+                )}
+                {/* Include sits top-left of the image. Only included pins are
+                    pushed. Approval used to be a bare count and the push took
+                    the first N pins, so a rejected pin still went out. */}
+                <label
+                  className={pin.approved ? 'pin-check is-on' : 'pin-check'}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={pin.approved}
+                    onChange={() => dispatch({ type: 'toggleApproved', pin: n })}
+                  />
+                  Include
+                </label>
+                {/* Above the band, so it never covers the checkbox or the brand. */}
+                {pin.flagged && (
+                  <div
+                    className={`pin-flag ${
+                      review.overlayPos === 'bottom' ? `pin-flag-above-${review.overlaySize}` : 'pin-flag-bottom'
+                    }`}
+                  >
+                    Keyword flagged
+                  </div>
+                )}
               </div>
-              <div className="pin-title">{pin.title}</div>
+              <div className="pin-title">{pin.title || <em>No title yet</em>}</div>
+              <div className="pin-sub">
+                {pin.mockup}
+                {pin.scene ? ` · ${pin.scene}` : ''}
+              </div>
               <div className="pin-chips">
                 {networks.map((net, j) => (
                   <span key={net} className={j === 0 ? 'tag tag-accent' : 'tag tag-neutral'}>
@@ -361,7 +389,10 @@ function PinGrid({
           Show {hidden} more pins
         </button>
       )}
-      <p className="rail-note">Rejecting one crop keeps the rest of the pin.</p>
+      <p className="rail-note">
+        {included} of {Math.min(review.shown, review.pins.length)} included. Only included pins go to
+        Content360.
+      </p>
     </>
   );
 }
@@ -371,37 +402,22 @@ function Inspector() {
   const { rules } = useWorkspace();
   const { review, dispatch } = useReview();
   const pin = review.pins[review.pin - 1];
+  const tagsOn = pin.keywords.filter((k) => k.on).length;
 
+  // Re-runs the same prompt as the Generating step, for the selected pin only.
   const rewrite = async () => {
     if (review.writing) return;
     dispatch({ type: 'writeStart' });
-    try {
-      const res = await fetch('/api/copywrite', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          product: review.product,
-          scenes: run.scenes.map((s) => SCENE_CATALOG[s - 1]),
-          styleDirection: run.styleDirection || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (json.ok && json.copy) {
-        dispatch({
-          type: 'writeSuccess',
-          title: json.copy.title,
-          desc: json.copy.desc,
-          keywords: json.copy.keywords,
-        });
-      } else {
-        dispatch({
-          type: 'writeFailure',
-          message: json.message ?? 'Could not write that one — try again.',
-        });
-      }
-    } catch {
-      dispatch({ type: 'writeFailure', message: 'Could not write that one — try again.' });
-    }
+    const res = await requestCopy({
+      image: heroImage(run),
+      product: review.product,
+      mockup: pin.mockup,
+      scenes: pin.scene ? [pin.scene] : [],
+      styleDirection: run.styleDirection,
+      rules,
+    });
+    if (res.ok) dispatch({ type: 'writeSuccess', copy: res.copy });
+    else dispatch({ type: 'writeFailure', message: res.message });
   };
 
   return (
@@ -411,13 +427,13 @@ function Inspector() {
       </div>
 
       <div className="field-block">
-        <div className="field-label">Product</div>
+        <div className="field-label">Notes for the copywriter — optional</div>
         <textarea
           className="input"
           style={{ minHeight: 70 }}
           value={review.product}
           onChange={(e) => dispatch({ type: 'setProduct', text: e.target.value })}
-          placeholder="The product description handed to the model"
+          placeholder="Anything the image doesn't show — size, material, who it's for"
         />
       </div>
 
@@ -453,6 +469,25 @@ function Inspector() {
           value={pin.title}
           onChange={(e) => dispatch({ type: 'setTitle', text: e.target.value })}
         />
+        {review.titleOptions.length > 0 && (
+          <>
+            <div className="rail-note" style={{ margin: '10px 0 6px' }}>
+              Suggestions — click to use
+            </div>
+            <div className="title-options">
+              {review.titleOptions.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={pin.title === t ? 'title-option is-on' : 'title-option'}
+                  onClick={() => dispatch({ type: 'setTitle', text: t })}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="field-block">
@@ -467,7 +502,7 @@ function Inspector() {
 
       <div className="rewrite-row">
         <span className="rewrite-note">
-          {rules.requireAd && !/#ad\b/i.test(pin.desc)
+          {rules.requireAd && pin.desc && !/#ad\b/i.test(pin.desc)
             ? 'No #ad in this description — add it if this pin promotes an affiliate link.'
             : ''}
         </span>
@@ -483,26 +518,29 @@ function Inspector() {
       {review.writeError && <p className="ingest-error">{review.writeError}</p>}
 
       <div className="field-block">
-        <div className="field-label">Keywords</div>
+        <div className="field-label">
+          Tags · {tagsOn} of {pin.keywords.length || TAG_TOTAL}
+        </div>
         {pin.keywords.length === 0 ? (
           <p className="rail-note" style={{ margin: '4px 0 0' }}>
-            No keywords yet — Rewrite with AI drafts five.
+            No tags yet — they are written with the titles and description. Rewrite with AI to try
+            again.
           </p>
         ) : (
-          <div className="choice-list" style={{ marginTop: 6 }}>
+          <div className="tag-checklist">
             {pin.keywords.map((k, i) => (
-              <label key={k.text} className="choice-row" style={{ fontSize: 13.5 }}>
+              <label key={`${k.text}-${i}`} className="tag-check">
                 <input
                   type="checkbox"
                   checked={k.on}
                   onChange={() => dispatch({ type: 'toggleKeyword', index: i })}
                 />
-                {k.text}
+                <span>{k.text}</span>
               </label>
             ))}
           </div>
         )}
-        {pin.kwNote && <p className="kw-note">{pin.kwNote}</p>}
+        {review.kwNote && <p className="kw-note">{review.kwNote}</p>}
       </div>
 
       <div className="field-block">
@@ -559,7 +597,7 @@ function Inspector() {
 function ReviewBody({ runId }: { runId: string }) {
   const { run } = useRun();
   const { review, dispatch } = useReview();
-  const { setBatch, setPushError } = usePush();
+  const { setBatch, setPushError, setSummary } = usePush();
   const { rules } = useWorkspace();
   const navigate = useNavigate();
   const [pushing, setPushing] = useState(false);
@@ -568,79 +606,80 @@ function ReviewBody({ runId }: { runId: string }) {
   // left unlabelled, so the seller can judge which pins actually needed it.
   const [adNotice, setAdNotice] = useState('');
   const [pushProgress, setPushProgress] = useState('');
-  const pushNetworks = useMemo(
-    () =>
-      run.fanOut === 'pinterest'
-        ? ['pinterest']
-        : run.fanOut === 'pinterest_facebook'
-          ? ['pinterest', 'facebook']
-          : ['pinterest', 'facebook', 'instagram'],
-    [run.fanOut]
-  );
+  const pushNetworks = useMemo(() => networksFor(run.fanOut), [run.fanOut]);
   const staleAccounts = useAccountHealth(pushNetworks, rules.accountByNetwork);
-  const product = run.hero !== null ? heroImages(run)[run.hero - 1] : heroImages(run)[0];
-  const selectedScene = review.pins[review.pin - 1]?.scene ?? '';
-  // What to generate. Off, that is one image per template and pins sharing a
-  // template share it; on, it is one per pin. The key is what a card looks its
-  // own image up by, so it has to be computed the same way in both places —
-  // hence mockupKey().
+  const product = heroImage(run);
+
+  // The seller can skip ahead to Review before the copy comes back. When it
+  // lands, fill every pin that is still empty.
+  useEffect(() => {
+    if (run.copy.status === 'done') dispatch({ type: 'applyRunCopy', copy: run.copy });
+    else if (run.copy.status === 'failed')
+      dispatch({ type: 'writeFailure', message: run.copy.message });
+  }, [run.copy, dispatch]);
+
+  // What to generate. Off, that is one image per mockup + scene and pins
+  // sharing a scene share it; on, it is one per pin. The key is what a card
+  // looks its own image up by, so it is computed the same way in both places.
+  const mockupKey = (pin: Pin, n: number) => mockupKeyFor(pin, n, run.distinctPerPin);
   const jobs = useMemo<MockupJob[]>(() => {
-    if (!run.distinctPerPin) {
-      const seen: string[] = [];
-      for (const p of review.pins) if (p.scene && !seen.includes(p.scene)) seen.push(p.scene);
-      return seen.map((scene) => ({ key: scene, scene }));
-    }
-    return review.pins
-      .map((p, i) => ({ key: `${p.scene}#${i + 1}`, scene: p.scene, variant: String(i + 1) }))
-      .filter((j) => j.scene);
-  }, [review.pins, run.distinctPerPin]);
+    const seen = new Set<string>();
+    const out: MockupJob[] = [];
+    review.pins.forEach((p, i) => {
+      const key = mockupKeyFor(p, i + 1, run.distinctPerPin);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({
+        key,
+        mockup: p.mockup,
+        scene: p.scene,
+        ...(run.distinctPerPin ? { variant: String(i + 1) } : {}),
+      });
+    });
+    return out;
+    // Only the mockup and scene of each pin matter — not its copy, which
+    // changes on every keystroke in the inspector.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [review.pins.map((p) => `${p.mockup}|${p.scene}`).join('\n'), run.distinctPerPin]);
 
   const {
     mockups,
+    errors: sceneErrors,
     failure: sceneFailure,
     done: mockupsDone,
     total: mockupsTotal,
   } = useSceneMockups(product, jobs, run.styleDirection);
 
-  const mockupKey = (scene: string, pinNumber: number) =>
-    run.distinctPerPin ? `${scene}#${pinNumber}` : scene;
-  const mockup = selectedScene ? mockups[mockupKey(selectedScene, review.pin)] : undefined;
-  // Crops render from the scene mockup when there is one, else the raw photo.
+  const selectedPin = review.pins[review.pin - 1];
+  const selectedKey = selectedPin ? mockupKey(selectedPin, review.pin) : '';
+  const mockup = mockups[selectedKey];
+  // Crops render from the mockup when there is one, else the raw photo.
   const src = mockup ?? product;
   const rendered = useRenderedCrops(src, review.overlay, review.overlayPos, review.overlaySize);
   const flagged = review.pins.filter((p) => p.flagged).length;
 
-  // Facebook turns a bare URL in the body into a clickable link. Instagram does
-  // not — captions there are never clickable, whatever they contain — but the
-  // address is still visible and copyable, which beats no address at all.
-  const captionFor = (pin: { desc: string; link: string }, network: string) => {
-    if (network === 'pinterest' || !pin.link.trim()) return pin.desc;
-    if (pin.desc.includes(pin.link.trim())) return pin.desc;
-    return `${pin.desc}\n\n${pin.link.trim()}`;
-  };
-
-  // Build the outgoing batch: one post per approved pin per fanned-out
-  // network, each carrying the asset at that network's crop.
+  // Build the outgoing batch: one post per included pin per fanned-out
+  // network, each carrying that pin's own copy and that network's crop.
   const push = async () => {
     if (pushing) return;
-    setPushing(true);
     setInlinePushError('');
-    const networkCrop: Record<string, Crop> = {
-      pinterest: '2:3',
-      facebook: '1:1',
-      instagram: '4:5',
-    };
-    const wanted =
-      run.fanOut === 'pinterest'
-        ? (['pinterest'] as const)
-        : run.fanOut === 'pinterest_facebook'
-          ? (['pinterest', 'facebook'] as const)
-          : (['pinterest', 'facebook', 'instagram'] as const);
+    if (review.approved === 0) {
+      setInlinePushError('Tick Include on at least one pin before pushing to Content360.');
+      return;
+    }
+    // Every post needs its words. Testing sent six image-only posts out of
+    // nine; an included pin with no copy now stops the push, by number.
+    const missing = pinsMissingCopy(review.pins);
+    if (missing.length) {
+      setInlinePushError(missingCopyMessage(missing));
+      return;
+    }
+    setPushing(true);
 
     // The times we push have to be the times the calendar showed. They come
     // from the scheduling engine — the workspace window, the per-network
     // stagger and the daily caps all live there, and none of it can be
-    // reconstructed here. Asking for exactly the approved pins is safe: the
+    // reconstructed here. Asking for exactly the included pins is safe: the
     // engine fills slots in pin order, so the first N are the same either way.
     let slots: Map<string, string>;
     try {
@@ -677,18 +716,16 @@ function ReviewBody({ runId }: { runId: string }) {
       return;
     }
 
-    // Each pin's OWN crops. This used to read `rendered`, which is the crops of
-    // whichever pin happened to be selected — so every post in the batch went
-    // out carrying the same picture. Rendering is local sharp work with no API
-    // cost, so it is done per pin, here, at the moment of pushing.
-    const approvedPins = review.pins
+    // Each pin's OWN crops. Rendering is local sharp work with no API cost, so
+    // it is done per pin, here, at the moment of pushing.
+    const includedPins = review.pins
       .map((pin, i) => ({ pin, n: i + 1 }))
       .filter(({ pin }) => pin.approved);
 
     const assets = new Map<number, Rendered>();
-    for (const { pin, n } of approvedPins) {
-      setPushProgress(`Preparing assets — ${assets.size + 1} of ${approvedPins.length}…`);
-      const source = mockups[mockupKey(pin.scene, n)] ?? product;
+    for (const { pin, n } of includedPins) {
+      setPushProgress(`Preparing assets — ${assets.size + 1} of ${includedPins.length}…`);
+      const source = mockups[mockupKey(pin, n)] ?? product;
       if (!source) continue;
       try {
         const res = await fetch('/api/crops/render', {
@@ -704,13 +741,13 @@ function ReviewBody({ runId }: { runId: string }) {
         const json = await res.json();
         if (json.ok && json.images) assets.set(n, json.images);
       } catch {
-        // Left out of the map; the guard below refuses rather than sending the
-        // wrong pin's picture, which is the fault this whole block fixes.
+        // Left out of the map; the guard below refuses rather than sending a
+        // post with no picture.
       }
     }
     setPushProgress('');
 
-    const missingAsset = approvedPins.find(({ n }) => !assets.get(n));
+    const missingAsset = includedPins.find(({ n }) => !assets.get(n)?.[NETWORK_CROP.pinterest]);
     if (missingAsset) {
       setInlinePushError(
         `Could not render the assets for pin ${missingAsset.n}, so nothing was pushed. Try again.`
@@ -719,39 +756,15 @@ function ReviewBody({ runId }: { runId: string }) {
       return;
     }
 
-    const posts = approvedPins.flatMap(({ pin, n }, i) =>
-      wanted.map((network) => ({
-        localId: `${runId}#${n}#${network}`,
-        network,
-        scheduledAt: slots.get(`${i + 1}#${network}`)!,
-        // Pinterest carries the destination as a real field on the post, so
-        // its caption stays clean. Facebook and Instagram have no such field —
-        // the only way a viewer ever sees the link is in the caption text, so
-        // it goes on the end there.
-        caption: captionFor(pin, network),
-        assetUrl: assets.get(n)![networkCrop[network]],
-        // The account chosen in Connections. Sent explicitly so a workspace
-        // with two accounts on one network never depends on list order.
-        ...(rules.accountByNetwork[network]
-          ? { accountId: rules.accountByNetwork[network]!.id }
-          : {}),
-        ...(network === 'pinterest'
-          ? {
-              pinterest: {
-                title: pin.title,
-                // The pin's own destination. An upload-based run has no
-                // listing to inherit a URL from, so this was empty on every
-                // post — a pin nobody could buy from.
-                link: pin.link,
-                // The board picked once in Connections. Content360 keys it
-                // per account, so this is the only destination we supply.
-                ...(rules.pinterestBoardId ? { board: rules.pinterestBoardId } : {}),
-              },
-            }
-          : {}),
-        ...(network === 'facebook' ? { facebook: { postType: 'post' as const } } : {}),
-      }))
-    );
+    const posts = buildPosts({
+      runId,
+      pins: review.pins,
+      networks: pushNetworks,
+      slots,
+      assets,
+      accountByNetwork: rules.accountByNetwork,
+      board: rules.pinterestBoardId || undefined,
+    });
 
     // The engine returns a slot for every pin on every fanned-out network, so
     // a gap here means the two disagree about the run. Push nothing rather
@@ -774,6 +787,7 @@ function ReviewBody({ runId }: { runId: string }) {
       setAdNotice(json.adWarning ?? '');
       if (json.ok && json.batch) {
         setBatch(json.batch);
+        setSummary(pushSummary(includedPins.length, pushNetworks));
         setPushError('');
         navigate('/');
       } else {
@@ -812,7 +826,7 @@ function ReviewBody({ runId }: { runId: string }) {
         </div>
         <div className="review-bar-actions">
           <span className="review-counts">
-            {review.approved} approved · {flagged} flagged
+            {review.approved} included · {flagged} flagged
           </span>
           <button className="btn btn-secondary" type="button" onClick={() => dispatch({ type: 'approveAll' })}>
             Approve all
@@ -820,13 +834,7 @@ function ReviewBody({ runId }: { runId: string }) {
           <button className="btn btn-secondary" type="button" onClick={() => dispatch({ type: 'rejectAll' })}>
             Clear all
           </button>
-          <button
-            className="btn btn-primary"
-            type="button"
-            disabled={pushing || review.approved === 0}
-            title={review.approved === 0 ? 'Approve at least one pin first' : undefined}
-            onClick={push}
-          >
+          <button className="btn btn-primary" type="button" disabled={pushing} onClick={push}>
             {pushing ? 'Pushing…' : 'Push to Content360'}
           </button>
         </div>
@@ -868,12 +876,17 @@ function ReviewBody({ runId }: { runId: string }) {
       )}
       <div className="review-body">
         <div className="review-left">
-          <CropPreview src={src} rendered={rendered} hasScene={Boolean(mockup)} />
-          <PinGrid
+          <CropPreview
             src={src}
+            rendered={rendered}
+            hasScene={Boolean(mockup)}
+            sceneError={sceneErrors[selectedKey]}
+          />
+          <PinGrid
             rendered={rendered}
             networks={networks}
             mockups={mockups}
+            errors={sceneErrors}
             product={product}
             mockupKey={mockupKey}
           />

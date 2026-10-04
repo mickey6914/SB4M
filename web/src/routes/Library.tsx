@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assetCount, heroImages, SCENE_CATALOG, useRun } from '../state/run';
+import { assetCount, heroImages, sceneNames, useNewRun, useRun } from '../state/run';
 import { usePush } from '../state/push';
 
 // Library, README section 9: past runs, with duplicating a run reusing its
@@ -17,7 +17,8 @@ type ServerBatch = {
 };
 
 export default function Library() {
-  const { run, dispatch } = useRun();
+  const { run } = useRun();
+  const newRun = useNewRun();
   const { batch } = usePush();
   const navigate = useNavigate();
   const [batches, setBatches] = useState<ServerBatch[]>([]);
@@ -45,10 +46,7 @@ export default function Library() {
 
   // Duplicating reuses the scenes and style direction, per the spec — the
   // point is to skip re-deciding the look for a new product.
-  const duplicate = () => {
-    dispatch({ type: 'setLink', link: '' });
-    navigate('/run/product');
-  };
+  const duplicate = () => newRun({ keepRecipe: true });
 
   const pushedRow = batches[0];
 
@@ -69,7 +67,7 @@ export default function Library() {
             className="btn btn-primary"
             type="button"
             style={{ marginTop: 14 }}
-            onClick={() => navigate('/run/product')}
+            onClick={() => newRun()}
           >
             Start a run
           </button>
@@ -174,7 +172,7 @@ export default function Library() {
         <div className="library-recipe">
           <div className="rail-kicker">This run's recipe — what Duplicate reuses</div>
           <div className="rail-note" style={{ marginTop: 0 }}>
-            Scenes: {run.scenes.map((s) => SCENE_CATALOG[s - 1]).join(' · ')}
+            {run.mockup} · Scenes: {sceneNames(run).join(' · ')}
             {run.styleDirection ? ` — style: ${run.styleDirection}` : ''}
           </div>
         </div>

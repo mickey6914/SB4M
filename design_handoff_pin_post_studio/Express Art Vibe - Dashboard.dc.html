@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="_ds/modernist-49dd4cf5-ae51-4ac8-8124-19dbf858d814/styles.css">
 <script src="_ds/modernist-49dd4cf5-ae51-4ac8-8124-19dbf858d814/_ds_bundle.js"></script>
 <script src="./image-slot.js"></script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#fff8dc"/><text x="50" y="62" text-anchor="middle" font-family="Georgia,serif" font-weight="800" font-size="34" fill="#c0392b">AV</text></svg></template>
 <style>
 body{margin:0;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)}
 a{color:var(--color-accent-700);text-decoration:none}
@@ -70,7 +71,7 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
           Content360 connected
         </div>
         <button class="btn btn-secondary" type="button" onClick="{{ goHome }}">Dashboard</button>
-        <button class="btn btn-primary" type="button" onClick="{{ goProduct }}">New run</button>
+        <button class="btn btn-primary" type="button" onClick="{{ newRun }}">New run</button>
       </div>
     </header>
 
@@ -135,7 +136,7 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 32px;background:var(--color-neutral-900);color:#fff;border-bottom:2px solid var(--color-text)">
         <div style="display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-          Run 15 pushed to Content360 — 90 posts queued across Pinterest, Facebook and Instagram.
+          {{ pushMsg }}
         </div>
         <button class="btn" type="button" style="background:#fff;color:var(--color-neutral-900);border:0" onClick="{{ goCalendar }}">See the calendar</button>
       </div>
@@ -268,9 +269,13 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
             <span style="height:2px;flex:1;background:var(--color-divider)"></span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:700px">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Drop a product photo"></image-slot></div>
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Drop a product photo"></image-slot></div>
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Drop a product photo"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-{{ runId }}-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Drop a product photo"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-{{ runId }}-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Drop a product photo"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-{{ runId }}-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Drop a product photo"></image-slot></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:18px;max-width:700px">
+            <button class="btn btn-primary" type="button" onClick="{{ goHero }}">Continue with uploaded photos</button>
+            <span style="font-size:13px;color:var(--color-neutral-700)">Next: pick the hero image</span>
           </div>
         </div>
         <div style="border-left:2px solid var(--color-divider);padding-left:28px">
@@ -303,50 +308,29 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
       </div>
       <section style="padding:36px 32px 40px">
         <h1 style="font-family:var(--font-heading);font-weight:800;font-size:40px;line-height:1.05;letter-spacing:-0.02em;margin:0 0 10px;text-align:left">Pick the hero image.</h1>
-        <p style="font-size:15.5px;line-height:1.55;color:var(--color-neutral-800);margin:0 0 12px;max-width:40em">Six images came off the listing. Choose the one every mockup builds from — the sharpest, cleanest shot of the product itself.</p>
-        <p style="font-size:13px;line-height:1.5;color:var(--color-accent-700);margin:0 0 24px;max-width:40em">Prototype note: nothing is fetched from the link yet — that needs the real backend. Drop your own listing images onto the six tiles to see the flow with real product photos (hover a filled tile for Replace · Clear · Edit).</p>
-        <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px">
+        <p style="font-size:15.5px;line-height:1.55;color:var(--color-neutral-800);margin:0 0 12px;max-width:40em">These are the photos you uploaded. Choose the one every mockup builds from — the sharpest, cleanest shot of the product itself.</p>
+        <p style="font-size:13px;line-height:1.5;color:var(--color-accent-700);margin:0 0 24px;max-width:40em">Only one photo? It's already selected. Empty tiles are ignored.</p>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-width:700px">
           <div onClick="{{ pickHero1 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ hb1 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="hero-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Image 1"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-{{ runId }}-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Photo 1"></image-slot></div>
             <sc-if value="{{ hsel1 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12px;margin-top:8px;font-weight:{{ hw1 }};color:{{ hfg1 }}">{{ hcap1 }}</div>
           </div>
           <div onClick="{{ pickHero2 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ hb2 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="hero-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Image 2"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-{{ runId }}-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Photo 2"></image-slot></div>
             <sc-if value="{{ hsel2 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12px;margin-top:8px;font-weight:{{ hw2 }};color:{{ hfg2 }}">{{ hcap2 }}</div>
           </div>
           <div onClick="{{ pickHero3 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ hb3 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="hero-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Image 3"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="up-{{ runId }}-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Photo 3"></image-slot></div>
             <sc-if value="{{ hsel3 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12px;margin-top:8px;font-weight:{{ hw3 }};color:{{ hfg3 }}">{{ hcap3 }}</div>
-          </div>
-          <div onClick="{{ pickHero4 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ hb4 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="hero-4" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Image 4"></image-slot></div>
-            <sc-if value="{{ hsel4 }}" hint-placeholder-val="{{ false }}">
-              <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
-            </sc-if>
-            <div style="font-size:12px;margin-top:8px;font-weight:{{ hw4 }};color:{{ hfg4 }}">{{ hcap4 }}</div>
-          </div>
-          <div onClick="{{ pickHero5 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ hb5 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="hero-5" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Image 5"></image-slot></div>
-            <sc-if value="{{ hsel5 }}" hint-placeholder-val="{{ false }}">
-              <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
-            </sc-if>
-            <div style="font-size:12px;margin-top:8px;font-weight:{{ hw5 }};color:{{ hfg5 }}">{{ hcap5 }}</div>
-          </div>
-          <div onClick="{{ pickHero6 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ hb6 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1"><image-slot id="hero-6" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Image 6"></image-slot></div>
-            <sc-if value="{{ hsel6 }}" hint-placeholder-val="{{ false }}">
-              <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
-            </sc-if>
-            <div style="font-size:12px;margin-top:8px;font-weight:{{ hw6 }};color:{{ hfg6 }}">{{ hcap6 }}</div>
           </div>
         </div>
         <div style="display:flex;gap:12px;margin-top:32px;padding-top:24px;border-top:2px solid var(--color-divider)">
@@ -386,13 +370,11 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
           </div>
           <div style="margin-top:32px;max-width:700px">
             <div style="font-size:11.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:10px">Style direction — optional</div>
-            <input class="input" type="text" defaultValue="Warm fall colours, no people, plenty of negative space" placeholder="e.g. warm fall colours, no people" style="width:100%;font-size:14.5px" />
+            <input class="input" type="text" value="{{ styleDir }}" onChange="{{ onStyleDir }}" placeholder="e.g. warm fall colours, no people" style="width:100%;font-size:14.5px" />
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
-              <span class="tag tag-outline">No people</span>
-              <span class="tag tag-outline">Minimalist white</span>
-              <span class="tag tag-outline">Fall colours</span>
-              <span class="tag tag-outline">Bright &amp; airy</span>
-              <span class="tag tag-outline">Holiday</span>
+              <sc-for list="{{ styleChips }}" as="c" hint-placeholder-count="5">
+                <button type="button" onClick="{{ c.toggle }}" style="font-family:var(--font-body);font-size:12px;font-weight:600;padding:5px 10px;cursor:pointer;border:2px solid var(--color-accent);background:{{ c.bg }};color:{{ c.fg }}">{{ c.label }}</button>
+              </sc-for>
             </div>
           </div>
         </div>
@@ -437,58 +419,71 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
             <button class="btn btn-ghost" type="button">Show 50 more</button>
           </div>
         </div>
+        <div style="font-size:11.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:10px">Mockup — what the design goes on</div>
+        <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-bottom:32px">
+          <sc-for list="{{ mockups }}" as="m" hint-placeholder-count="12">
+            <div onClick="{{ m.pick }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ m.border }}">
+              <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="{{ m.slot }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="{{ m.label }}"></image-slot></div>
+              <sc-if value="{{ m.on }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+              </sc-if>
+              <div style="font-size:12.5px;margin-top:8px;font-weight:{{ m.w }};color:{{ m.fg }}">{{ m.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:11.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:10px">Scenes — pick three</div>
         <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px">
           <div onClick="{{ pickScene1 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb1 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Cozy home setting"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Cozy home setting"></image-slot></div>
             <sc-if value="{{ ssel1 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw1 }};color:{{ sfg1 }}">Cozy home setting</div>
           </div>
           <div onClick="{{ pickScene2 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb2 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Desk flat lay"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Desk flat lay"></image-slot></div>
             <sc-if value="{{ ssel2 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw2 }};color:{{ sfg2 }}">Desk flat lay</div>
           </div>
           <div onClick="{{ pickScene3 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb3 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Gift box scene"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Gift box scene"></image-slot></div>
             <sc-if value="{{ ssel3 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw3 }};color:{{ sfg3 }}">Gift box scene</div>
           </div>
           <div onClick="{{ pickScene4 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb4 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-4" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Digital screen mockup"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-4" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Digital screen mockup"></image-slot></div>
             <sc-if value="{{ ssel4 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw4 }};color:{{ sfg4 }}">Digital screen mockup</div>
           </div>
           <div onClick="{{ pickScene5 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb5 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-5" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Linen table"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-5" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Linen table"></image-slot></div>
             <sc-if value="{{ ssel5 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw5 }};color:{{ sfg5 }}">Linen table</div>
           </div>
           <div onClick="{{ pickScene6 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb6 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-6" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Window light"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-6" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Window light"></image-slot></div>
             <sc-if value="{{ ssel6 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw6 }};color:{{ sfg6 }}">Window light</div>
           </div>
           <div onClick="{{ pickScene7 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb7 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-7" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Studio shelf"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-7" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Studio shelf"></image-slot></div>
             <sc-if value="{{ ssel7 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
             <div style="font-size:12.5px;margin-top:8px;font-weight:{{ sw7 }};color:{{ sfg7 }}">Studio shelf</div>
           </div>
           <div onClick="{{ pickScene8 }}" style="position:relative;padding:6px;cursor:pointer;border:2px solid {{ sb8 }}">
-            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-8" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Holiday wrap"></image-slot></div>
+            <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/3"><image-slot id="scene-{{ runId }}-8" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Holiday wrap"></image-slot></div>
             <sc-if value="{{ ssel8 }}" hint-placeholder-val="{{ false }}">
               <div style="position:absolute;top:6px;right:6px;background:var(--color-accent);color:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
             </sc-if>
@@ -517,8 +512,8 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
         </div>
         <div style="margin-top:36px;max-width:640px;border-top:2px solid var(--color-divider)">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:2px solid var(--color-divider);font-size:14.5px"><span>Rendering mockups in 3 scenes</span><span style="font-weight:600;color:var(--color-accent-700)">{{ s1 }}</span></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:2px solid var(--color-divider);font-size:14.5px"><span>Writing pin titles</span><span style="font-weight:600;color:var(--color-accent-700)">{{ s2 }}</span></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:2px solid var(--color-divider);font-size:14.5px"><span>Drafting SEO descriptions + keywords</span><span style="font-weight:600;color:var(--color-accent-700)">{{ s3 }}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:2px solid var(--color-divider);font-size:14.5px"><span>Writing 3 titles, description + 13 tags</span><span style="font-weight:600;color:var(--color-accent-700)">{{ copyStatus }}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:2px solid var(--color-divider);font-size:14.5px"><span>Applying copy to all {{ volume }} pins</span><span style="font-weight:600;color:var(--color-accent-700)">{{ s3 }}</span></div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:2px solid var(--color-divider);font-size:14.5px"><span>Cutting 1:1 and 4:5 crops</span><span style="font-weight:600;color:var(--color-accent-700)">{{ s4 }}</span></div>
         </div>
         <div style="display:flex;gap:12px;margin-top:28px">
@@ -545,6 +540,9 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
           <button class="btn btn-primary" type="button" onClick="{{ push }}">Push to Content360</button>
         </div>
       </div>
+      <sc-if value="{{ pushError }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:10px 32px;border-bottom:2px solid var(--color-text);background:var(--color-accent);color:#fff;font-size:13.5px;font-weight:600">{{ pushError }}</div>
+      </sc-if>
       <section style="display:grid;grid-template-columns:1fr 400px;align-items:start">
         <div style="padding:28px 32px 40px">
           <div style="border:2px solid var(--color-text);padding:20px;margin-bottom:28px">
@@ -558,28 +556,28 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
             <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;align-items:end">
               <div>
                 <div style="position:relative;min-width:0;width:100%;aspect-ratio:2/3;background:var(--color-neutral-200)">
-                  <image-slot id="{{ slot23 }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="2:3"></image-slot>
+                  <image-slot id="{{ slot23 }}" src="{{ heroSrc }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="2:3"></image-slot>
                   <div style="position:absolute;left:0;right:0;{{ overlayAnchor }}background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 7px;pointer-events:none">{{ overlayText }}</div>
                 </div>
                 <div style="font-size:12px;font-weight:600;margin-top:8px">2:3 · Pinterest pin</div>
               </div>
               <div>
                 <div style="position:relative;min-width:0;width:100%;aspect-ratio:1/1;background:var(--color-neutral-200)">
-                  <image-slot id="{{ slot11 }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="1:1"></image-slot>
+                  <image-slot id="{{ slot11 }}" src="{{ heroSrc }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="1:1"></image-slot>
                   <div style="position:absolute;left:0;right:0;{{ overlayAnchor }}background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 7px;pointer-events:none">{{ overlayText }}</div>
                 </div>
                 <div style="font-size:12px;font-weight:600;margin-top:8px">1:1 · Facebook post</div>
               </div>
               <div>
                 <div style="position:relative;min-width:0;width:100%;aspect-ratio:4/5;background:var(--color-neutral-200)">
-                  <image-slot id="{{ slot45 }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="4:5"></image-slot>
+                  <image-slot id="{{ slot45 }}" src="{{ heroSrc }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="4:5"></image-slot>
                   <div style="position:absolute;left:0;right:0;{{ overlayAnchor }}background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 7px;pointer-events:none">{{ overlayText }}</div>
                 </div>
                 <div style="font-size:12px;font-weight:600;margin-top:8px">4:5 · Instagram feed</div>
               </div>
               <div>
                 <div style="position:relative;min-width:0;width:100%;aspect-ratio:9/16;background:var(--color-neutral-200)">
-                  <image-slot id="{{ slot916 }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="9:16"></image-slot>
+                  <image-slot id="{{ slot916 }}" src="{{ heroSrc }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="9:16"></image-slot>
                   <div style="position:absolute;left:0;right:0;{{ overlayAnchor }}background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 7px;pointer-events:none">{{ overlayText }}</div>
                 </div>
                 <div style="font-size:12px;font-weight:600;margin-top:8px">9:16 · Story / reel</div>
@@ -587,66 +585,25 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
             </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px">
-            <div onClick="{{ pickPin1 }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ pb1 }}">
-              <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}"><image-slot id="rev-1" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Pin 1"></image-slot></div>
-              <sc-if value="{{ pflag1 }}" hint-placeholder-val="{{ false }}">
-                <div style="position:absolute;top:8px;left:8px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
-              </sc-if>
-              <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ pTitle1 }}</div>
-              <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span><span class="tag tag-neutral">FB</span><span class="tag tag-neutral">IG</span></div>
-            </div>
-            </sc-if>
-            <div onClick="{{ pickPin2 }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ pb2 }}">
-              <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}"><image-slot id="rev-2" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Pin 2"></image-slot></div>
-              <sc-if value="{{ pflag2 }}" hint-placeholder-val="{{ false }}">
-                <div style="position:absolute;top:8px;left:8px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
-              </sc-if>
-              <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ pTitle2 }}</div>
-              <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span><span class="tag tag-neutral">FB</span></div>
-            </div>
-            </sc-if>
-            <div onClick="{{ pickPin3 }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ pb3 }}">
-              <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}"><image-slot id="rev-3" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Pin 3"></image-slot></div>
-              <sc-if value="{{ pflag3 }}" hint-placeholder-val="{{ false }}">
-                <div style="position:absolute;top:8px;left:8px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
-              </sc-if>
-              <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ pTitle3 }}</div>
-              <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span><span class="tag tag-neutral">IG</span></div>
-            </div>
-            <sc-if value="{{ pshow4 }}" hint-placeholder-val="{{ true }}">
-            <div onClick="{{ pickPin4 }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ pb4 }}">
-              <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}"><image-slot id="rev-4" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Pin 4"></image-slot></div>
-              <sc-if value="{{ pflag4 }}" hint-placeholder-val="{{ false }}">
-                <div style="position:absolute;top:8px;left:8px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
-              </sc-if>
-              <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ pTitle4 }}</div>
-              <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span><span class="tag tag-neutral">FB</span><span class="tag tag-neutral">IG</span></div>
-            </div>
-            </sc-if>
-            <sc-if value="{{ pshow5 }}" hint-placeholder-val="{{ true }}">
-            <div onClick="{{ pickPin5 }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ pb5 }}">
-              <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}"><image-slot id="rev-5" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Pin 5"></image-slot></div>
-              <sc-if value="{{ pflag5 }}" hint-placeholder-val="{{ false }}">
-                <div style="position:absolute;top:8px;left:8px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
-              </sc-if>
-              <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ pTitle5 }}</div>
-              <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span></div>
-            </div>
-            </sc-if>
-            <sc-if value="{{ pshow6 }}" hint-placeholder-val="{{ true }}">
-            <div onClick="{{ pickPin6 }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ pb6 }}">
-              <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}"><image-slot id="rev-6" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="Pin 6"></image-slot></div>
-              <sc-if value="{{ pflag6 }}" hint-placeholder-val="{{ false }}">
-                <div style="position:absolute;top:8px;left:8px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
-              </sc-if>
-              <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ pTitle6 }}</div>
-              <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span><span class="tag tag-neutral">FB</span></div>
-            </div>
-            </sc-if>
+            <sc-for list="{{ pinCards }}" as="c" hint-placeholder-count="3">
+              <div onClick="{{ c.pick }}" style="padding:8px;cursor:pointer;position:relative;border:2px solid {{ c.border }};opacity:{{ c.op }}">
+                <div style="position:relative;min-width:0;width:100%;aspect-ratio:{{ cropRatio }}">
+                  <image-slot id="{{ c.slot }}" src="{{ heroSrc }}" shape="rect" fit="cover" style="width:100%;height:100%" placeholder="{{ c.scene }}"></image-slot>
+                  <div style="position:absolute;left:0;right:0;bottom:0;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:6px 7px;text-align:center;pointer-events:none">{{ overlayText }}</div>
+                  <label onClick="{{ c.stop }}" style="position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:6px;background:var(--color-bg);border:2px solid var(--color-text);padding:3px 7px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer"><input type="checkbox" checked="{{ c.inc }}" onChange="{{ c.toggle }}" style="margin:0" /> Include</label>
+                  <sc-if value="{{ c.flag }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;left:8px;bottom:34px;background:var(--color-text);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;pointer-events:none">Keyword flagged</div>
+                  </sc-if>
+                </div>
+                <div style="font-size:13px;font-weight:600;margin-top:10px;line-height:1.35">{{ c.title }}</div>
+                <div style="font-size:12px;color:var(--color-neutral-700);margin-top:4px">{{ c.mock }} · {{ c.scene }}</div>
+                <div style="display:flex;gap:6px;margin-top:8px"><span class="tag tag-accent">P</span><span class="tag tag-neutral">FB</span><span class="tag tag-neutral">IG</span></div>
+              </div>
+            </sc-for>
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:28px;padding-top:22px;border-top:2px solid var(--color-divider)">
             <sc-if value="{{ hasMore }}" hint-placeholder-val="{{ false }}"><button class="btn btn-ghost" type="button">Show {{ more }} more pins</button></sc-if>
-            <span style="font-size:12.5px;color:var(--color-neutral-700)">Rejecting one crop keeps the rest of the pin.</span>
+            <span style="font-size:12.5px;color:var(--color-neutral-700)">{{ includedCount }} of {{ shownPins }} included. Only included pins go to Content360. Drop an image on a scene tile in step 4 and it appears here.</span>
           </div>
         </div>
         <div style="border-left:2px solid var(--color-text);padding:28px;min-height:820px">
@@ -655,6 +612,14 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
           <input class="input" type="text" value="{{ product }}" onChange="{{ onProduct }}" placeholder="What is it? e.g. handmade stoneware mug set" style="width:100%;font-size:14px;margin-bottom:16px" />
           <div style="font-size:12px;font-weight:600;margin-bottom:6px">Title</div>
           <input class="input" type="text" value="{{ selTitle }}" onChange="{{ onTitle }}" style="width:100%;font-size:14px" />
+          <sc-if value="{{ hasTitleOpts }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px;color:var(--color-neutral-700);margin:10px 0 6px">Suggestions — click to use</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <sc-for list="{{ titleOpts }}" as="t" hint-placeholder-count="3">
+                <button type="button" onClick="{{ t.pick }}" style="text-align:left;padding:7px 10px;font-size:13px;line-height:1.35;font-family:var(--font-body);cursor:pointer;background:{{ t.bg }};color:var(--color-text);border:2px solid {{ t.border }};font-weight:{{ t.w }}">{{ t.text }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
           <div style="font-size:12px;font-weight:600;margin:18px 0 6px">Description</div>
           <textarea class="input" value="{{ selDesc }}" onChange="{{ onDesc }}" style="width:100%;height:110px;font-size:13.5px;line-height:1.5;font-family:var(--font-body)"></textarea>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px">
@@ -664,10 +629,12 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
           <sc-if value="{{ writeError }}" hint-placeholder-val="{{ false }}">
             <div style="font-size:12.5px;color:var(--color-accent-700);margin-top:8px">{{ writeError }}</div>
           </sc-if>
-          <div style="font-size:12px;font-weight:600;margin:20px 0 10px">Keywords</div>
-          <sc-for list="{{ keywords }}" as="kw" hint-placeholder-count="5">
-            <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;padding:4px 0"><input type="checkbox" defaultChecked="{{ kw.on }}" /> {{ kw.text }}</label>
-          </sc-for>
+          <div style="font-size:12px;font-weight:600;margin:20px 0 10px">Tags · {{ tagCount }}</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px">
+            <sc-for list="{{ keywords }}" as="kw" hint-placeholder-count="13">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0;min-width:0"><input type="checkbox" checked="{{ kw.on }}" onChange="{{ kw.toggle }}" /> <span style="overflow-wrap:anywhere">{{ kw.text }}</span></label>
+            </sc-for>
+          </div>
           <div style="font-size:12.5px;color:var(--color-accent-700);margin-top:10px">{{ kwNote }}</div>
           <div style="margin-top:22px;padding-top:18px;border-top:2px solid var(--color-divider)">
             <div style="font-size:12px;font-weight:600;margin-bottom:10px">Text overlay</div>
@@ -915,6 +882,11 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
           <input class="input" type="text" defaultValue="Express Art Vibe" style="width:100%;font-size:14px" />
           <div style="font-size:12px;font-weight:600;margin:18px 0 6px">Max posts per network per day</div>
           <input class="input" type="text" defaultValue="3" style="width:100%;font-size:14px" />
+          <div style="font-size:12px;font-weight:600;margin:18px 0 6px">Copywriting prompt</div>
+          <textarea class="input" value="{{ copyPrompt }}" onChange="{{ onCopyPrompt }}" style="width:100%;height:150px;font-size:13px;line-height:1.5;font-family:var(--font-body)"></textarea>
+          <div style="font-size:12px;font-weight:600;margin:12px 0 6px">Product type</div>
+          <input class="input" type="text" value="{{ productType }}" onChange="{{ onProductType }}" style="width:100%;font-size:14px" />
+          <div style="font-size:12px;color:var(--color-neutral-700);margin-top:6px;line-height:1.5">Runs on every new run as soon as the hero image is confirmed. {product_type} is filled from the field above.</div>
           <div style="margin-top:22px;padding-top:16px;border-top:2px solid var(--color-divider);font-size:12.5px;color:var(--color-neutral-700);line-height:1.5">Workspace API id<br /><span style="font-family:ui-monospace,monospace;color:var(--color-text)">34b00c5d-265d-4c55-92b7-ebbc57669d39</span></div>
         </div>
       </section>
@@ -926,19 +898,19 @@ a:hover{color:var(--color-accent-600);text-decoration:underline}
 class Component extends DCLogic {
   state = {
     screen: 'home', progress: 0, pushed: false,
+    heroSrc: '', mockup: 'Wall art',
+    styleDir: 'Warm fall colours, no people, plenty of negative space',
+    runId: (() => { try { return Number(localStorage.getItem('eav-run-id')) || 1; } catch (e) { return 1; } })(),
     link: 'https://www.etsy.com/listing/1482093/ceramic-mug-gift-set',
-    hero: 1, scenes: [1, 2, 3], pin: 1, crop: 0, approved: 24, volume: 30,
+    hero: 1, scenes: [1, 2, 3], included: [], pin: 1, crop: 0, approved: 24, volume: 30,
     product: 'handmade speckled stoneware mug gift set, boxed, neutral colours',
     overlay: 'Express Art Vibe', overlayPos: 'bottom',
     writing: false, writeError: '',
-    keywords: [
-      { text: 'ceramic mug gift set', on: true },
-      { text: 'coffee lover gift', on: true },
-      { text: 'cozy kitchen decor', on: true },
-      { text: 'stoneware mug aesthetic', on: false },
-      { text: 'fall coffee bar', on: false }
-    ],
-    kwNote: '2 keywords have thin Pinterest search volume — swap or keep.',
+    copyPrompt: 'Act as an Etsy Product Listing Specialist and provide 3 seo keyword optimized title suggestions based on the product style and design, and not the current title for this product; a product description, and 13 tags that will attract buyers for this {product_type} design.',
+    productType: 'acrylic faux stained glass wall art',
+    copyStatus: 'Queued', titleOpts: [], pushError: '',
+    keywords: ['ceramic mug gift set', 'coffee lover gift', 'cozy kitchen decor', 'stoneware mug', 'fall coffee bar', 'hostess gift', 'handmade mug', 'speckled mug', 'mug set of two', 'kitchen shelf decor', 'housewarming gift', 'gift for her', 'boxed gift set'].map(t => ({ text: t, on: true })),
+    kwNote: 'All 13 tags go on every pin. Untick any you don\'t want.',
     pins: [
       { title: 'Cozy Ceramic Mug Gift Set for Coffee Lovers', desc: 'Warm up the season with a handmade stoneware mug set — the easy hostess gift that actually gets used. Shop the set on Etsy. #ad', flagged: false },
       { title: 'Handmade Stoneware Mug — Warm Fall Kitchen Styling', desc: 'Speckled glaze, chunky handle, made to be the one you reach for. Styled for a warm autumn kitchen. #ad', flagged: false },
@@ -954,10 +926,35 @@ class Component extends DCLogic {
   sceneNames = ['cozy home setting', 'desk flat lay', 'gift box scene', 'digital screen mockup', 'linen table', 'window light', 'studio shelf', 'holiday wrap'];
   heroCaps = ['Listing 1', 'Listing 2', 'Listing 3', 'Listing 4', 'Listing 5', 'Listing 6'];
 
+  newRun() {
+    const id = this.state.runId + 1;
+    try { localStorage.setItem('eav-run-id', String(id)); } catch (e) {}
+    this.setState({ runId: id, included: [], hero: 1, pin: 1, titleOpts: [], copyStatus: 'Queued', pushError: '', heroSrc: '', product: '', link: '' });
+    this.go('product');
+  }
+
+  toggleStyle(label) {
+    this.setState(st => {
+      const parts = st.styleDir.split(',').map(s => s.trim()).filter(Boolean);
+      const i = parts.findIndex(p => p.toLowerCase() === label.toLowerCase());
+      if (i >= 0) parts.splice(i, 1); else parts.push(label);
+      return { styleDir: parts.join(', ') };
+    });
+  }
+
+  captureHero() {
+    const el = document.getElementById('up-' + this.state.runId + '-' + this.state.hero);
+    const src = el && el.hasAttribute('data-filled') && el._img ? el._img.src : '';
+    if (src) this.setState({ heroSrc: src });
+    return src || this.state.heroSrc;
+  }
+
   go(screen) {
+    if (this.state.screen === 'hero') this.captureHero();
     clearInterval(this._t);
     this.setState({ screen: screen, progress: 0 });
-    if (screen === 'generating') this.runProgress();
+    if (screen === 'generating') { this.runProgress(); this.writeCopy(false); }
+    if (screen !== 'review') this.setState({ pushError: '' });
   }
 
   runProgress() {
@@ -973,36 +970,61 @@ class Component extends DCLogic {
     }, 140);
   }
 
-  async rewrite() {
+  async writeCopy(onlySelected) {
     if (this.state.writing) return;
-    this.setState({ writing: true, writeError: '' });
-    const scenes = this.state.scenes.map(i => this.sceneNames[i - 1]).join(', ');
-    const prompt = 'You write Pinterest copy for an Etsy seller.\n\n' +
-      'Product: ' + this.state.product + '\n' +
-      'Scene / styling: ' + scenes + '\n\n' +
-      'Write ONE pin. Return ONLY minified JSON, no markdown fence, with keys:\n' +
-      '"title": under 60 characters, keyword-led, no emoji, title case.\n' +
-      '"desc": 2 short sentences, warm and plain-spoken, ends with " #ad".\n' +
-      '"keywords": array of exactly 5 lowercase Pinterest search phrases, 2-4 words each.';
+    this.setState({ writing: true, writeError: '', copyStatus: 'Writing…' });
+    if (!this.state.heroSrc) await new Promise(r => setTimeout(r, 50));
+    const st = this.state;
+    const prompt = st.copyPrompt.split('{product_type}').join(st.productType) + '\n\n' +
+      'Base everything on the attached product image: its subject, style, colours and design. It will be shown as a ' + st.mockup.toLowerCase() + ' mockup.' +
+      (st.product.trim() ? ' Extra notes from the seller: ' + st.product.trim() + '.' : '') + '\n\n' +
+      'Return ONLY minified JSON, no markdown fence: {"titles":[3 strings],"description":string,"tags":[13 strings]}. ' +
+      'Titles max 100 characters, no emoji. Description 3-5 sentences, plain text. Tags lowercase, max 20 characters each.';
     try {
-      const raw = await window.claude.complete(prompt);
+      let raw;
+      const m = (st.heroSrc || '').match(/^data:(image\/[a-z+]+);base64,(.*)$/);
+      if (m) {
+        try {
+          raw = await window.claude.complete({ messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
+            { type: 'text', text: prompt }
+          ] }] });
+        } catch (e) { raw = null; }
+      }
+      if (!raw) raw = await window.claude.complete(prompt.replace('Base everything on the attached product image: its subject, style, colours and design.', 'Product: ' + st.productType + '.'));
       const json = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
-      const kws = (json.keywords || []).slice(0, 5).map((t, i) => ({ text: String(t), on: i < 3 }));
-      this.setState(st => {
-        const pins = st.pins.slice();
-        pins[st.pin - 1] = Object.assign({}, pins[st.pin - 1], {
-          title: json.title || pins[st.pin - 1].title,
-          desc: json.desc || pins[st.pin - 1].desc
+      const titles = (json.titles || []).map(String).filter(Boolean).slice(0, 3);
+      const desc = String(json.description || '');
+      const tags = (json.tags || []).slice(0, 13).map(t => ({ text: String(t), on: true }));
+      if (!titles.length || !desc) throw new Error('empty');
+      this.setState(s2 => {
+        const pins = s2.pins.map((p, i) => {
+          if (onlySelected && i !== s2.pin - 1) return p;
+          return Object.assign({}, p, { title: titles[onlySelected ? 0 : i % titles.length], desc: desc });
         });
         return {
-          pins: pins, writing: false,
-          keywords: kws.length ? kws : st.keywords,
-          kwNote: 'Written by Claude just now — 3 of 5 selected by default.'
+          pins: pins, writing: false, copyStatus: 'Done', titleOpts: titles,
+          keywords: tags.length ? tags : s2.keywords,
+          kwNote: onlySelected ? 'Rewritten for pin ' + s2.pin + ' just now.' : 'Written by Claude for all ' + s2.volume + ' pins. Untick any tag you don\'t want.'
         };
       });
     } catch (e) {
-      this.setState({ writing: false, writeError: 'Could not write that one — try again.' });
+      this.setState({ writing: false, copyStatus: 'Failed', writeError: 'Copy didn\'t come back. Click Rewrite with AI to try again.' });
     }
+  }
+
+  toggleTag(i) {
+    this.setState(st => ({ keywords: st.keywords.map((k, j) => j === i ? Object.assign({}, k, { on: !k.on }) : k) }));
+  }
+
+  push() {
+    const st = this.state, n = Math.min(6, st.volume);
+    const idx = []; for (let i = 0; i < n; i++) if (st.included[i]) idx.push(i);
+    if (!idx.length) { this.setState({ pushError: 'Tick Include on at least one pin before pushing to Content360.' }); return; }
+    const missing = [];
+    for (const i of idx) if (!st.pins[i].title.trim() || !st.pins[i].desc.trim()) missing.push(i + 1);
+    if (missing.length) { this.setState({ pushError: 'Pin ' + missing.join(', ') + ' has no title or description. Every post needs copy before it goes to Content360.' }); return; }
+    this.setState({ pushed: true, pushedCount: idx.length, pushError: '' }); this.go('home');
   }
 
   toggleScene(i) {
@@ -1031,6 +1053,7 @@ class Component extends DCLogic {
       needsReview: this.props.needsReview ?? 30,
       showQueueWarning: (this.props.showQueueWarning ?? true) && !st.pushed,
       pushed: st.pushed,
+      pushMsg: st.pushedCount + ' pin' + (st.pushedCount === 1 ? '' : 's') + ' pushed to Content360: ' + (st.pushedCount * 3) + ' posts queued across Pinterest, Facebook and Instagram.',
       isHome: s === 'home', isProduct: s === 'product', isHero: s === 'hero',
       isVolume: s === 'volume', isScenes: s === 'scenes', isGenerating: s === 'generating',
       isReview: s === 'review', isCalendar: s === 'calendar', isLibrary: s === 'library',
@@ -1054,10 +1077,22 @@ class Component extends DCLogic {
       selDesc: st.pins[st.pin - 1].desc,
       product: st.product,
       onProduct: e => this.setState({ product: e.target.value }),
-      slot23: 'rev-' + st.pin,
-      slot11: 'crop11-' + st.pin,
-      slot45: 'crop45-' + st.pin,
-      slot916: 'crop916-' + st.pin,
+      runId: st.runId,
+      heroSrc: st.heroSrc,
+      mockups: ['T-shirt', 'Sweatshirt', 'T-shirt flat lay', 'Sweatshirt flat lay', 'Coffee cup', 'Pillow', 'Invitation card', 'Wall art', 'TV wall art', 'Tote bag', 'Sticker sheet', 'Planner stickers'].map((l, i) => {
+        const on = st.mockup === l;
+        return { label: l, slot: 'mock-' + (i + 1), on: on, border: on ? 'var(--color-accent)' : 'var(--color-divider)', w: on ? 600 : 400, fg: on ? 'var(--color-text)' : 'var(--color-neutral-700)', pick: () => this.setState({ mockup: l }) };
+      }),
+      styleDir: st.styleDir,
+      onStyleDir: e => this.setState({ styleDir: e.target.value }),
+      styleChips: ['No people', 'Minimalist white', 'Fall colours', 'Bright & airy', 'Holiday'].map(l => {
+        const on = st.styleDir.split(',').some(p => p.trim().toLowerCase() === l.toLowerCase());
+        return { label: l, bg: on ? 'var(--color-accent)' : 'transparent', fg: on ? '#fff' : 'var(--color-accent-700)', toggle: () => this.toggleStyle(l) };
+      }),
+      slot23: 'r' + st.runId + '-rev-' + st.pin,
+      slot11: 'r' + st.runId + '-crop11-' + st.pin,
+      slot45: 'r' + st.runId + '-crop45-' + st.pin,
+      slot916: 'r' + st.runId + '-crop916-' + st.pin,
       overlayText: st.overlay,
       onOverlay: e => this.setState({ overlay: e.target.value }),
       overlayPos: st.overlayPos,
@@ -1065,19 +1100,31 @@ class Component extends DCLogic {
       posTop: () => this.setState({ overlayPos: 'top' }),
       posMid: () => this.setState({ overlayPos: 'middle' }),
       posBot: () => this.setState({ overlayPos: 'bottom' }),
-      keywords: st.keywords,
+      keywords: st.keywords.map((k, i) => ({ text: k.text, on: k.on, toggle: () => this.toggleTag(i) })),
       kwNote: st.kwNote,
       writing: st.writing,
       writeError: st.writeError,
       writeLabel: st.writing ? 'Writing…' : 'Rewrite with AI',
-      rewrite: () => this.rewrite(),
+      rewrite: () => this.writeCopy(true),
+      copyStatus: st.copyStatus,
+      pushError: st.pushError,
+      copyPrompt: st.copyPrompt,
+      onCopyPrompt: e => this.setState({ copyPrompt: e.target.value }),
+      productType: st.productType,
+      onProductType: e => this.setState({ productType: e.target.value }),
+      tagCount: st.keywords.filter(k => k.on).length + ' of ' + st.keywords.length,
+      hasTitleOpts: st.titleOpts.length > 0,
+      titleOpts: st.titleOpts.map(t => {
+        const on = st.pins[st.pin - 1].title === t;
+        return { text: t, bg: on ? 'var(--color-neutral-200)' : 'transparent', border: on ? 'var(--color-accent)' : 'var(--color-divider)', w: on ? 600 : 400, pick: () => this.editPin('title', t) };
+      }),
       onTitle: e => this.editPin('title', e.target.value),
       onDesc: e => this.editPin('desc', e.target.value),
-      approveAll: () => this.setState(x => ({ approved: x.volume })),
+      approveAll: () => this.setState(x => ({ approved: x.volume, included: Array.from({ length: Math.min(6, x.volume) }, () => true) })),
       approvePin: () => this.setState(x => ({ approved: Math.min(x.volume, x.approved + 1), pin: Math.min(Math.min(6, x.volume), x.pin + 1) })),
       rejectPin: () => this.setState(x => ({ pin: Math.min(Math.min(6, x.volume), x.pin + 1) })),
-      push: () => { this.setState({ pushed: true }); this.go('home'); },
-      goHome: () => this.go('home'), goProduct: () => this.go('product'),
+      push: () => this.push(),
+      goHome: () => this.go('home'), goProduct: () => this.go('product'), newRun: () => this.newRun(),
       goHero: () => this.go('hero'), goVolume: () => this.go('volume'),
       goScenes: () => this.go('scenes'), goGenerating: () => this.go('generating'),
       goReview: () => this.go('review'), goCalendar: () => this.go('calendar')
@@ -1091,7 +1138,7 @@ class Component extends DCLogic {
       v[key + 'Bg'] = active ? 'var(--color-accent)' : 'transparent';
       v[key + 'Fg'] = active ? '#fff' : 'var(--color-text)';
       v[key + 'W'] = active ? 600 : 400;
-      v[key + 'Go'] = () => this.go(target);
+      v[key + 'Go'] = key === 'nRun' ? (e => { if (e) e.preventDefault(); this.newRun(); }) : () => this.go(target);
     });
 
     for (let i = 1; i <= 6; i++) {
@@ -1111,6 +1158,24 @@ class Component extends DCLogic {
       v['sfg' + i] = on ? 'var(--color-text)' : 'var(--color-neutral-700)';
       v['pickScene' + i] = () => this.toggleScene(i);
     }
+    const shown = Math.min(6, st.volume);
+    const sceneOrder = st.scenes.length ? st.scenes : [1];
+    v.shownPins = shown;
+    v.includedCount = st.included.filter(Boolean).length;
+    v.pinCards = Array.from({ length: shown }, (_, k) => {
+      const i = k + 1, sc = sceneOrder[k % sceneOrder.length], inc = !!st.included[k];
+      return {
+        title: st.pins[k].title, flag: st.pins[k].flagged, inc: inc,
+        border: st.pin === i ? 'var(--color-accent)' : 'var(--color-divider)',
+        op: inc || st.pin === i ? 1 : 0.75,
+        slot: 'scene-' + st.runId + '-' + sc,
+        scene: this.sceneNames[sc - 1].replace(/^./, c => c.toUpperCase()),
+        mock: st.mockup,
+        pick: () => this.setState({ pin: i }),
+        stop: e => e.stopPropagation(),
+        toggle: () => this.setState(s2 => { const a = s2.included.slice(); a[k] = !a[k]; return { included: a }; })
+      };
+    });
     for (let i = 1; i <= 6; i++) {
       const on = st.pin === i;
       v['pb' + i] = on ? 'var(--color-accent)' : 'var(--color-divider)';

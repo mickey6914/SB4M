@@ -530,3 +530,46 @@ What remains is a reminder in two places: the inspector says when the selected
 pin's description has no `#ad`, and the push result reports how many went out
 without one. The workspace rule is relabelled to match — "Remind me when a
 description has no #ad" — since it no longer adds anything.
+
+## 14. Copy writes itself, and every post carries it
+
+Ported 2026-10-04 from the prototype update after seller testing
+(`design_handoff_pin_post_studio/PORT_FIXES_PROMPT.md`).
+
+**The bug that drove it.** One image, three pins, three networks: nine posts
+reached Content360, and six were image-only. Only the pin the seller had edited
+had a caption; the others pushed an empty body. Three changes close it:
+
+1. **Copy is written during the Generating step, for the whole run**, from the
+   hero image sent to Claude as a vision input, using the seller's own prompt
+   (editable on Connections, with a "Product type" field filling
+   `{product_type}`). The contract is now 3 title suggestions, 1 description
+   and 13 tags. Pin 1 takes title 1, pin 2 title 2, and round again; every pin
+   gets the description and all 13 tags.
+2. **Each post is built from its own pin** — `web/src/state/posts.ts`, pure
+   and tested. Pinterest gets the title in its title field and the description
+   plus as many hashtags as fit under its 500-character limit; Facebook and
+   Instagram, which have no title or link field, get title, description,
+   hashtags and the link in the caption.
+3. **Missing copy is a gate**, unlike #ad (§13): an included pin with no title
+   or description stops the push in Review, by pin number, and the server
+   refuses any post with an empty body as a backstop.
+
+**A second fault the end-to-end check found.** With copy fixed, a mocked
+three-pin push still uploaded only three images for nine posts: every pin went
+out with pin 1's picture. The crop renderer cached by the first 200 characters
+of the source plus its length — and two mockups at the same size share their
+JPEG header, so equal-length images collided. The key is now a SHA-256 of the
+whole source. The scene-mockup cache had the same key shape, which could hand a
+new run the previous run's mockups; it is hashed too.
+
+**Mockup type and scenes are now separate choices.** The Scenes step picks one
+mockup type (the §11 templates) and up to three scenes; pins rotate through the
+scenes and the scene is written into the template prompt, so a run on one
+mockup type still reads as several settings. A failed mockup shows its error on
+the pin's card instead of quietly showing the raw photo.
+
+**Not verified here:** whether `/api/scenes/mockup` returns generated images on
+Render depends on `SCENE_PROVIDER` and `ABACUS_API_KEY` in the Render
+environment, which this session cannot see. `GET /api/scenes/status` on the
+deployed URL reports the active provider; `npm run check:scenes` exercises it.

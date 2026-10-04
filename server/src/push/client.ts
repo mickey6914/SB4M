@@ -95,6 +95,32 @@ export function findAdViolations(posts: OutgoingPost[]): string[] {
   return posts.filter((p) => !adCompliant(p.caption)).map((p) => p.localId);
 }
 
+// Posts that would go out without their copy. A post is the pin's picture
+// AND its words: testing produced six image-only posts out of nine, because
+// only the pin the seller had edited carried a caption. An empty body is never
+// what anyone meant, so it stops the batch here rather than reaching an
+// audience. Pinterest also needs its title, which travels outside the body.
+export function findMissingCopy(posts: OutgoingPost[]): string[] {
+  return posts
+    .filter(
+      (p) =>
+        !p.caption?.trim() || (p.network === 'pinterest' && !p.pinterest?.title?.trim())
+    )
+    .map((p) => p.localId);
+}
+
+// The app builds local ids as `${runId}#${pin}#${network}`, so the pin number
+// is the middle part. Anything else is reported by its id.
+export function pinLabels(localIds: string[]): string[] {
+  const labels: string[] = [];
+  for (const id of localIds) {
+    const parts = id.split('#');
+    const label = parts.length === 3 && /^\d+$/.test(parts[1]) ? parts[1] : id;
+    if (!labels.includes(label)) labels.push(label);
+  }
+  return labels;
+}
+
 class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -306,6 +332,19 @@ function readPostStatus(json: unknown): { uuid?: string; state: PostState; error
 export async function pushBatch(posts: OutgoingPost[]): Promise<PushResult> {
   if (posts.length === 0) {
     return { ok: false, error: 'rejected', message: 'Nothing to push — approve some pins first.' };
+  }
+
+  // Unlike #ad below, missing copy IS a gate: nothing is sent.
+  const uncaptioned = findMissingCopy(posts);
+  if (uncaptioned.length > 0) {
+    const pins = pinLabels(uncaptioned);
+    return {
+      ok: false,
+      error: 'blocked',
+      message: `Pin ${pins.join(', ')} ${
+        pins.length > 1 ? 'have' : 'has'
+      } no title or description. Every post needs copy before it goes to Content360 — nothing was pushed.`,
+    };
   }
 
   // #ad is a reminder, not a gate.

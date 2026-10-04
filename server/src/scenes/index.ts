@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import sharp from 'sharp';
 import { composeMockup } from './compose.js';
@@ -10,6 +11,10 @@ import { loadImageSource } from '../shared/load-image.js';
 // (scene, style, product) so re-selecting a scene is instant and free.
 
 type MockupBody = {
+  // The mockup type — what the design goes on (a template label). When set,
+  // `scene` is the setting that pin is shot in. When absent, `scene` is read
+  // the old way: a template label, or a §7 hybrid backdrop name.
+  mockup?: string;
   scene?: string;
   styleDirection?: string;
   product?: string; // http(s) URL or data: URL
@@ -36,8 +41,12 @@ export function registerSceneRoutes(app: FastifyInstance) {
 
   app.post<{ Body: MockupBody }>('/api/scenes/mockup', async (req, reply) => {
     const scene = (req.body?.scene ?? '').trim();
+    const mockup = (req.body?.mockup ?? '').trim();
     const product = req.body?.product;
-    if (!scene) {
+    if (mockup && !templateByLabel(mockup)) {
+      return reply.status(422).send({ ok: false, message: `"${mockup}" is not a mockup type this app knows.` });
+    }
+    if (!scene && !mockup) {
       return reply.status(422).send({ ok: false, message: 'Pick a scene first.' });
     }
     if (typeof product !== 'string' || !product) {
@@ -45,10 +54,12 @@ export function registerSceneRoutes(app: FastifyInstance) {
     }
 
     const key = JSON.stringify([
+      mockup,
       scene,
       req.body?.styleDirection ?? '',
-      product.slice(0, 200),
-      product.length,
+      // The whole image, hashed. A prefix and a length let a new run's photo of
+      // the same size come back with the previous run's mockups.
+      createHash('sha256').update(product).digest('base64'),
       req.body?.scale ?? null,
       req.body?.variant ?? null,
     ]);
@@ -66,15 +77,14 @@ export function registerSceneRoutes(app: FastifyInstance) {
     // A named mockup template applies the artwork to a product and is finished
     // when it comes back — there is nothing for the compositor to do. Anything
     // else is a §7 hybrid scene: empty backdrop, product composited on top.
-    const template = templateByLabel(scene);
+    const template = templateByLabel(mockup || scene);
     if (template) {
       const variantNumber = Number(req.body?.variant);
-      const built = await generateMockupFromArt(
-        productBuf,
-        'image/png',
-        template,
-        Number.isFinite(variantNumber) ? variantNumber : undefined
-      );
+      const built = await generateMockupFromArt(productBuf, 'image/png', template, {
+        variant: Number.isFinite(variantNumber) ? variantNumber : undefined,
+        scene: mockup ? scene : undefined,
+        styleDirection: req.body?.styleDirection,
+      });
       if (!built.ok) {
         return reply.status(502).send({ ok: false, provider: 'abacus', message: built.message });
       }

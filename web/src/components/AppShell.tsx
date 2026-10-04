@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { activeShop, WORKSPACE } from '../data/workspace';
-import { heroImages, useRun } from '../state/run';
+import { heroImages, useNewRun, useRun } from '../state/run';
 import {
   CalendarIcon,
   CheckIcon,
@@ -27,6 +27,7 @@ export default function AppShell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { run } = useRun();
+  const newRun = useNewRun();
 
   // The badge used to be the mockup's hardcoded 30, which read as "you have 30
   // pins waiting" on a fresh install with nothing in it at all. Show the run's
@@ -69,6 +70,14 @@ export default function AppShell() {
                 key={label}
                 to={to}
                 className={match(pathname) ? 'nav-item active' : 'nav-item'}
+                // From outside the wizard, "New run" starts clean. Inside it,
+                // the link is just the current step's home and keeps the run.
+                onClick={(e) => {
+                  if (to === '/run/product' && !pathname.startsWith('/run')) {
+                    e.preventDefault();
+                    newRun();
+                  }
+                }}
               >
                 <span className="nav-item-label">
                   <Icon />
@@ -109,7 +118,7 @@ export default function AppShell() {
             <button className="btn btn-secondary" type="button" onClick={() => navigate('/')}>
               Dashboard
             </button>
-            <button className="btn btn-primary" type="button" onClick={() => navigate('/run/product')}>
+            <button className="btn btn-primary" type="button" onClick={() => newRun()}>
               New run
             </button>
           </div>

@@ -5,6 +5,8 @@ import {
   captionToBody,
   extensionFor,
   findAdViolations,
+  findMissingCopy,
+  pinLabels,
   pushBatch,
   type OutgoingPost,
 } from '../src/push/client.js';
@@ -154,4 +156,43 @@ test('an upload is named after what it actually is', () => {
   assert.equal(extensionFor('image/webp'), 'webp');
   assert.equal(extensionFor('video/mp4'), 'mp4');
   assert.equal(extensionFor('application/octet-stream'), 'png');
+});
+
+// Testing pushed nine posts and six of them went out image-only: only the pin
+// the seller had edited carried a caption. An empty body is now a gate.
+test('a post with no caption blocks the whole batch, naming the pins', async () => {
+  const result = await pushBatch([
+    post('run#1#pinterest', 'Warm mugs.'),
+    post('run#2#facebook', ''),
+    post('run#3#instagram', '   '),
+  ]);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'blocked');
+  assert.match(result.message, /Pin 2, 3 have no title or description/);
+});
+
+test('a Pinterest post with no title counts as missing copy', () => {
+  assert.deepEqual(
+    findMissingCopy([
+      { ...post('run#1#pinterest', 'Has a body.'), pinterest: { title: '', link: '' } },
+      post('run#2#pinterest', 'Has a body.'),
+    ]),
+    ['run#1#pinterest']
+  );
+});
+
+test('missing copy is checked before credentials, so nothing is attempted', async () => {
+  const saved = process.env.CONTENT360_API_KEY;
+  delete process.env.CONTENT360_API_KEY;
+  try {
+    const result = await pushBatch([post('run#1#pinterest', '')]);
+    assert.equal(result.error, 'blocked');
+  } finally {
+    if (saved !== undefined) process.env.CONTENT360_API_KEY = saved;
+  }
+});
+
+test('pin labels come from the local id, one per pin', () => {
+  assert.deepEqual(pinLabels(['15#2#pinterest', '15#2#facebook', '15#4#instagram']), ['2', '4']);
+  assert.deepEqual(pinLabels(['odd-id']), ['odd-id']);
 });

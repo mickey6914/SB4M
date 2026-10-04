@@ -433,6 +433,30 @@ export default function Connections() {
           />
         </div>
 
+        <div className="field-block">
+          <div className="field-label">Copywriting prompt</div>
+          <textarea
+            className="input"
+            style={{ minHeight: 150, fontSize: 13, lineHeight: 1.5 }}
+            value={rules.copyPrompt}
+            onChange={(e) => update({ copyPrompt: e.target.value })}
+          />
+          <div className="field-label" style={{ marginTop: 12 }}>
+            Product type
+          </div>
+          <input
+            className="input"
+            type="text"
+            value={rules.productType}
+            onChange={(e) => update({ productType: e.target.value })}
+          />
+          <div className="rail-note" style={{ marginTop: 6 }}>
+            Runs on every new run as soon as the hero image is confirmed, with the hero image
+            attached. {'{product_type}'} is filled from the field above.
+            {rules.copyPrompt.trim() === '' && ' Empty means the default prompt is used.'}
+          </div>
+        </div>
+
         <div className="conn-api-id">
           <div className="rail-kicker" style={{ marginBottom: 6 }}>
             Workspace API id

@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // Client state for the run wizard, per the handoff's State Management table
 // and selection rules: hero is single-select; scenes are multi-select capped
@@ -19,7 +20,19 @@ export type Listing = {
   price?: string;
 };
 
+// The run's copy, written once by Claude during the Generating step from the
+// hero image: three title suggestions, one description, thirteen tags. Review
+// spreads it across the pins — pin 1 takes title 1, and so on.
+export type RunCopy =
+  | { status: 'idle' }
+  | { status: 'writing' }
+  | { status: 'done'; titles: string[]; description: string; tags: string[] }
+  | { status: 'failed'; message: string };
+
 export type RunState = {
+  // Bumped on every new run. Anything derived from a previous run keys on it,
+  // so nothing stale can leak into the next one.
+  runNumber: number;
   shopId: string;
   link: string;
   // Fetched listing (increment 3) and seller-dropped photos — the two image
@@ -29,6 +42,9 @@ export type RunState = {
   hero: number | null;
   volume: Volume;
   styleDirection: string;
+  // What the design goes on — one of MOCKUP_CATALOG.
+  mockup: string;
+  // Up to three scenes (1-based into SCENE_CATALOG). Pins rotate through them.
   scenes: number[];
   fanOut: FanOut;
   // Default crops per spec; 9:16 unchecked. Instagram's default fan-out crop
@@ -39,14 +55,14 @@ export type RunState = {
   // identical pins, which Pinterest treats as spam — so this defaults on and
   // the wizard shows what it costs. See DECISIONS.md §12.
   distinctPerPin: boolean;
+  copy: RunCopy;
 };
 
-// The shop's own mockup templates. These are not backdrops to stand a product
-// on — each one applies the artwork to a product, and the prompt that does it
-// lives server-side in scenes/templates.ts. Labels must match those exactly:
-// the server looks the template up by label, and anything it does not
-// recognise falls through to the older empty-backdrop path.
-export const SCENE_CATALOG = [
+// The shop's own mockup templates — what the design goes on. Each one applies
+// the artwork to a product, and the prompt that does it lives server-side in
+// scenes/templates.ts. Labels must match those exactly: the server looks the
+// template up by label.
+export const MOCKUP_CATALOG = [
   'T-shirt',
   'Sweatshirt',
   'T-shirt flat lay',
@@ -61,7 +77,47 @@ export const SCENE_CATALOG = [
   'Planner stickers',
 ];
 
+export const DEFAULT_MOCKUP = 'Wall art';
+
+// The settings a mockup is shot in. Pins rotate through the three chosen —
+// pin 1 scene A, pin 2 scene B, pin 3 scene C — with the design applied to
+// the run's mockup type in every one.
+export const SCENE_CATALOG = [
+  'Cozy home setting',
+  'Desk flat lay',
+  'Gift box scene',
+  'Digital screen mockup',
+  'Linen table',
+  'Window light',
+  'Studio shelf',
+  'Holiday wrap',
+];
+
+export const STYLE_SUGGESTIONS = ['No people', 'Minimalist white', 'Fall colours', 'Bright & airy', 'Holiday'];
+
+function styleParts(text: string): string[] {
+  return text
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function styleHas(text: string, chip: string): boolean {
+  return styleParts(text).some((p) => p.toLowerCase() === chip.toLowerCase());
+}
+
+// A chip toggles its phrase in and out of the style text, leaving whatever
+// else the seller typed alone.
+export function toggleStylePhrase(text: string, chip: string): string {
+  const parts = styleParts(text);
+  const i = parts.findIndex((p) => p.toLowerCase() === chip.toLowerCase());
+  if (i >= 0) parts.splice(i, 1);
+  else parts.push(chip);
+  return parts.join(', ');
+}
+
 const initial: RunState = {
+  runNumber: 1,
   shopId: 'eav',
   link: '',
   listing: null,
@@ -69,10 +125,12 @@ const initial: RunState = {
   hero: null,
   volume: 30,
   styleDirection: '',
+  mockup: DEFAULT_MOCKUP,
   scenes: [],
   fanOut: 'all',
   crops: { '2:3': true, '1:1': true, '4:5': true, '9:16': false },
   distinctPerPin: true,
+  copy: { status: 'idle' },
 };
 
 type Action =
@@ -87,19 +145,34 @@ type Action =
   | { type: 'setFanOut'; fanOut: FanOut }
   | { type: 'toggleCrop'; crop: Crop }
   | { type: 'setDistinctPerPin'; on: boolean }
-  | { type: 'reset' };
+  | { type: 'setMockup'; mockup: string }
+  | { type: 'setCopy'; copy: RunCopy }
+  // keepRecipe: Library's Duplicate starts a new product with the same look.
+  | { type: 'reset'; keepRecipe?: boolean };
 
 function reducer(state: RunState, action: Action): RunState {
   switch (action.type) {
     case 'setLink':
       return { ...state, link: action.link };
     case 'setListing':
-      // A new listing invalidates any previous hero choice.
-      return { ...state, listing: action.listing, hero: null };
-    case 'addUploads':
-      return { ...state, uploads: [...state.uploads, ...action.uploads].slice(0, 6) };
+      // A new listing invalidates any previous hero choice and its copy.
+      // Photo 1 is preselected when the listing is what the hero step shows.
+      return {
+        ...state,
+        listing: action.listing,
+        hero: state.uploads.length ? state.hero : action.listing.images.length ? 1 : null,
+        copy: { status: 'idle' },
+      };
+    case 'addUploads': {
+      const uploads = [...state.uploads, ...action.uploads].slice(0, 6);
+      // Photo 1 is preselected, so a single upload needs no extra click.
+      return { ...state, uploads, hero: state.hero ?? (uploads.length ? 1 : null) };
+    }
     case 'setHero':
-      return { ...state, hero: action.hero };
+      // Copy is written from the hero, so a different hero needs new copy.
+      return state.hero === action.hero
+        ? state
+        : { ...state, hero: action.hero, copy: { status: 'idle' } };
     case 'setVolume':
       return { ...state, volume: action.volume };
     case 'setStyleDirection':
@@ -120,8 +193,28 @@ function reducer(state: RunState, action: Action): RunState {
       return { ...state, crops: { ...state.crops, [action.crop]: !state.crops[action.crop] } };
     case 'setDistinctPerPin':
       return { ...state, distinctPerPin: action.on };
-    case 'reset':
-      return initial;
+    case 'setMockup':
+      return { ...state, mockup: action.mockup };
+    case 'setCopy':
+      return { ...state, copy: action.copy };
+    case 'reset': {
+      // A new run starts clean: no uploads, no listing, no hero, no copy —
+      // and a new run number, so mockups and review state from the last run
+      // cannot carry over.
+      const fresh = { ...initial, runNumber: state.runNumber + 1 };
+      return action.keepRecipe
+        ? {
+            ...fresh,
+            mockup: state.mockup,
+            scenes: state.scenes,
+            styleDirection: state.styleDirection,
+            volume: state.volume,
+            fanOut: state.fanOut,
+            crops: state.crops,
+            distinctPerPin: state.distinctPerPin,
+          }
+        : fresh;
+    }
   }
 }
 
@@ -130,9 +223,22 @@ export function assetCount(state: RunState): number {
   return state.volume * cropCount;
 }
 
-// The hero step's six tiles: listing images first, then uploads.
+// The hero step's candidates. The seller's own uploads win outright: mixing
+// in listing images put photos on the hero step the seller never chose. Only
+// a run with no uploads at all falls back to the pulled listing's images.
 export function heroImages(state: RunState): string[] {
-  return [...(state.listing?.images ?? []), ...state.uploads].slice(0, 6);
+  return (state.uploads.length ? state.uploads : (state.listing?.images ?? [])).slice(0, 6);
+}
+
+// The image every mockup and the copy build from. Photo 1 when nothing has
+// been picked explicitly.
+export function heroImage(state: RunState): string | undefined {
+  const images = heroImages(state);
+  return images[(state.hero ?? 1) - 1] ?? images[0];
+}
+
+export function sceneNames(state: RunState): string[] {
+  return state.scenes.map((s) => SCENE_CATALOG[s - 1]).filter(Boolean);
 }
 
 const RunContext = createContext<{ run: RunState; dispatch: Dispatch<Action> } | null>(null);
@@ -146,4 +252,16 @@ export function useRun() {
   const ctx = useContext(RunContext);
   if (!ctx) throw new Error('useRun outside RunProvider');
   return ctx;
+}
+
+// Every "New run" button: start clean — no uploaded photos, mockups, copy,
+// selected pin or approvals from the previous run — then go to step 1.
+// keepRecipe is Library's Duplicate: a new product with the same look.
+export function useNewRun() {
+  const { dispatch } = useRun();
+  const navigate = useNavigate();
+  return (opts: { keepRecipe?: boolean } = {}) => {
+    dispatch({ type: 'reset', keepRecipe: opts.keepRecipe });
+    navigate('/run/product');
+  };
 }

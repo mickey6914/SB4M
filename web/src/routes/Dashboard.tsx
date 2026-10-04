@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRightIcon, CheckIcon } from '../components/icons';
-import { assetCount, heroImages, useRun, type FanOut } from '../state/run';
+import { assetCount, heroImages, useNewRun, useRun, type FanOut } from '../state/run';
 import { usePush } from '../state/push';
 
 // Dashboard home, README section 1: run starter, stat row, the alert /
@@ -24,7 +24,8 @@ const STATE_TAG: Record<string, string> = {
 
 export default function Dashboard() {
   const { run, dispatch } = useRun();
-  const { batch, setBatch, pushError } = usePush();
+  const newRun = useNewRun();
+  const { batch, setBatch, pushError, summary } = usePush();
   const navigate = useNavigate();
   const [link, setLink] = useState(run.link);
   const [retrying, setRetrying] = useState(false);
@@ -32,9 +33,10 @@ export default function Dashboard() {
   const hasRun = heroImages(run).length > 0;
   const productTitle = run.listing?.title ?? 'your uploads';
 
+  // A new run starts clean — no photos, mockups or copy from the last one.
   const start = () => {
+    newRun();
     dispatch({ type: 'setLink', link });
-    navigate('/run/product');
   };
 
   const retryFailed = async () => {
@@ -181,8 +183,8 @@ export default function Dashboard() {
         <div className="band band-confirm">
           <div className="band-message">
             <CheckIcon size={18} />
-            Run {batch.runId} pushed to Content360 — {batch.posts.length} posts queued across your
-            networks.
+            {summary ||
+              `Run ${batch.runId} pushed to Content360 — ${batch.posts.length} posts queued across your networks.`}
           </div>
           <button className="btn band-btn-light" type="button" onClick={() => navigate('/calendar')}>
             See the calendar
@@ -238,7 +240,7 @@ export default function Dashboard() {
               >
                 Review {run.volume} pins
               </button>
-              <button className="btn btn-secondary" type="button" onClick={() => navigate('/run/product')}>
+              <button className="btn btn-secondary" type="button" onClick={() => newRun()}>
                 New run
               </button>
             </div>
