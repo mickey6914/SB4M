@@ -621,3 +621,22 @@ costs no credits. Pins on it rotate through six backdrop and frame pairings so
 they aren't identical images (§12).
 
 The server still accepts a `scene` on `/api/scenes/mockup`; nothing sends one.
+
+## 17. Nothing preselected, and "New run" is always new
+
+Found 2026-10-05: a run produced a Basic marketing pin the seller had not
+picked. A fresh run didn't do that; the pick was **carried over from the
+previous run**. The sidebar's "New run" link skipped the reset whenever the
+current page's address began with `/run`, which includes the Building pins
+screen, so starting a run from there kept the last run's photos and mockups.
+
+Two changes:
+
+- "New run" always resets, from anywhere.
+- The mockup step starts with nothing ticked, and every pick can be unticked.
+  It had preselected Wall art, and a tick the seller didn't make is
+  indistinguishable from one they did. Generate pins stays disabled until at
+  least one mockup is chosen.
+
+Library's Duplicate still carries the mockups over on purpose. That's what
+duplicating is for.

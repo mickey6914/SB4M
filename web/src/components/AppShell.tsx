@@ -70,10 +70,12 @@ export default function AppShell() {
                 key={label}
                 to={to}
                 className={match(pathname) ? 'nav-item active' : 'nav-item'}
-                // From outside the wizard, "New run" starts clean. Inside it,
-                // the link is just the current step's home and keeps the run.
+                // "New run" always starts clean. It used to keep the run when
+                // clicked from any /run page — including the Building pins
+                // screen — so the last run's photos and mockups carried into
+                // the next one.
                 onClick={(e) => {
-                  if (to === '/run/product' && !pathname.startsWith('/run')) {
+                  if (to === '/run/product') {
                     e.preventDefault();
                     newRun();
                   }

@@ -81,7 +81,10 @@ export const MOCKUP_CATALOG = [
   'Planner stickers',
 ];
 
-export const DEFAULT_MOCKUPS = ['Wall art'];
+// Nothing is preselected. A default tick looked like the seller's own choice,
+// and a pick carried over from an earlier run went out as if it were this
+// run's (DECISIONS.md §17).
+export const DEFAULT_MOCKUPS: string[] = [];
 
 export const MAX_MOCKUPS = 3;
 
@@ -169,8 +172,6 @@ function reducer(state: RunState, action: Action): RunState {
       return { ...state, styleDirection: action.text };
     case 'toggleMockup': {
       if (state.mockups.includes(action.mockup)) {
-        // Never zero: the last one stays until another is picked.
-        if (state.mockups.length === 1) return state;
         return { ...state, mockups: state.mockups.filter((m) => m !== action.mockup) };
       }
       // Capped at three: choosing a fourth drops the oldest (FIFO).
@@ -178,7 +179,7 @@ function reducer(state: RunState, action: Action): RunState {
       return { ...state, mockups: mockups.length > MAX_MOCKUPS ? mockups.slice(1) : mockups };
     }
     case 'setMockups':
-      return action.mockups.length ? { ...state, mockups: action.mockups.slice(0, MAX_MOCKUPS) } : state;
+      return { ...state, mockups: action.mockups.slice(0, MAX_MOCKUPS) };
     case 'setFanOut':
       return { ...state, fanOut: action.fanOut };
     case 'toggleCrop':
