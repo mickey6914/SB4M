@@ -186,3 +186,16 @@ test('the parser applies the limit to what Claude returns', () => {
   assert.ok(copy.description.length <= 300, `${copy.description.length}`);
   assert.ok(copy.description.endsWith('.'));
 });
+
+// The product type is set per run now. Cleared, it must not fall back to the
+// stained-glass default — that put the phrase into every caption.
+test('a cleared product type leaves no placeholder and no default', () => {
+  const text = buildCopyPrompt({ hasImage: true, productType: '' });
+  assert.doesNotMatch(text, /\{product_type\}/);
+  assert.doesNotMatch(text, /stained glass/i);
+  assert.match(text, /for this design/);
+});
+
+test('an absent product type still uses the default', () => {
+  assert.match(buildCopyPrompt({ hasImage: true }), new RegExp(DEFAULT_PRODUCT_TYPE));
+});

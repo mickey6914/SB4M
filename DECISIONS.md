@@ -722,3 +722,29 @@ Now each copy result carries the run number and hero it was written for, and
 the run ignores any that don't match. Each pin records which batch filled it
 and whether the seller has changed its words. A new batch replaces every pin it
 didn't write unless the seller typed in it or rewrote it with AI.
+
+## 22. Product type per run; mockup failures you can retry
+
+2026-10-05, from a ghost-design run.
+
+**"Acrylic faux stained glass wall art" in every caption.** It wasn't left
+over from an old run. It was the workspace's Product type, filled into the
+seller's copywriting prompt on every run, so a ghost design was described as
+stained glass. Product type is now on step 1 of each run, prefilled from the
+Connections default. Change it for the product at hand, or clear it and the
+copy is written from the image alone. The server used to fall back to the
+default when it was empty; empty now means none.
+
+**"Mockup failed — Could not reach the server" on every pin.** All three
+failed at once, including two that are composited locally with no provider, so
+the server itself was unreachable: most likely the instance restarting, either
+redeploying or out of memory on the 512MB free plan. Three changes:
+
+- Each mockup request retries once when the server can't be reached or answers
+  with a non-app page, and the message now says which happened.
+- Failed mockups get a **Try again** button, on the card and in the notice,
+  offered only once generation has finished so a retry never re-requests a
+  paid generation still in flight. Mockups that already succeeded come back
+  from the server's cache at no cost.
+- libvips runs with its cache off and one thread, trading a little speed for
+  memory headroom on a small instance.

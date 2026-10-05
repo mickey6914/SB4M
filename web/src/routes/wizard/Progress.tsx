@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { requestCopy } from '../../state/copy';
-import { assetCount, heroImage, useRun } from '../../state/run';
+import { assetCount, heroImage, productTypeFor, useRun } from '../../state/run';
 import { useWorkspace } from '../../state/workspace';
 
 // The stages users read as an explanation of where their money and time go.
@@ -41,6 +41,7 @@ export default function Progress() {
       mockups: run.mockups,
       styleDirection: run.styleDirection,
       rules,
+      productType: productTypeFor(run, rules.productType),
     }).then((res) => {
       inFlight.delete(key);
       dispatch({
