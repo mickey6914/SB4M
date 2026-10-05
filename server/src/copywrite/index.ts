@@ -78,10 +78,11 @@ export type CopyPromptInput = {
 };
 
 // How a mockup type reads in a sentence. "Basic marketing" is the app's name
-// for a clean framed shot, which is not something a buyer would search for.
+// for a clean promo shot of the art, which is not something a buyer would
+// search for.
 function mockupPhrase(label: string): string {
   const l = label.trim().toLowerCase();
-  return l === 'basic marketing' ? 'framed print' : l;
+  return l === 'basic marketing' ? 'art print' : l;
 }
 
 function listPhrase(items: string[]): string {

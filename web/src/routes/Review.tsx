@@ -122,6 +122,69 @@ function useSceneMockups(
   return { mockups, errors, failure, done, total: product && jobs.length ? jobs.length : 0 };
 }
 
+// Basic marketing prints the pin's title under the artwork, so its image has
+// to follow the title. It is kept apart from the AI mockups on purpose: those
+// cost credits, and if a title edit re-ran that loop, a generation still in
+// flight would be requested again. These are composited locally, so redrawing
+// one after the seller stops typing is free and quick.
+const BASIC_MARKETING = 'Basic marketing';
+
+function useTitledMockups(product: string | undefined, pins: Pin[], distinct: boolean) {
+  const [mockups, setMockups] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const wanted = useMemo(() => {
+    const out: { key: string; title: string; variant?: string }[] = [];
+    const seen = new Set<string>();
+    pins.forEach((p, i) => {
+      if (p.mockup !== BASIC_MARKETING) return;
+      const key = mockupKeyFor(p, i + 1, distinct);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ key, title: p.title, ...(distinct ? { variant: String(i + 1) } : {}) });
+    });
+    return out;
+  }, [pins, distinct]);
+  const signature = JSON.stringify(wanted);
+
+  useEffect(() => {
+    const jobs: { key: string; title: string; variant?: string }[] = JSON.parse(signature);
+    if (!product || jobs.length === 0) return;
+    let cancelled = false;
+    // Wait for the seller to stop typing before redrawing.
+    const t = setTimeout(async () => {
+      for (const job of jobs) {
+        if (cancelled) return;
+        try {
+          const res = await fetch('/api/scenes/mockup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ mockup: BASIC_MARKETING, product, title: job.title, variant: job.variant }),
+          });
+          const json = await res.json();
+          if (cancelled) return;
+          if (json.ok && json.image) {
+            setMockups((m) => ({ ...m, [job.key]: json.image }));
+            setErrors((e) => {
+              const { [job.key]: _gone, ...rest } = e;
+              return rest;
+            });
+          } else {
+            setErrors((e) => ({ ...e, [job.key]: json.message || 'The Basic marketing image could not be made.' }));
+          }
+        } catch {
+          if (!cancelled) setErrors((e) => ({ ...e, [job.key]: 'Could not reach the server to build the mockup.' }));
+        }
+      }
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [product, signature]);
+
+  return { mockups, errors };
+}
+
 // Which of the accounts this run will post to are no longer authorized.
 //
 // Content360 refuses a post to an expired account, and so does our push — but
@@ -613,6 +676,8 @@ function ReviewBody({ runId }: { runId: string }) {
     const seen = new Set<string>();
     const out: MockupJob[] = [];
     review.pins.forEach((p, i) => {
+      // Basic marketing carries the pin's title, so it has its own pass below.
+      if (p.mockup === BASIC_MARKETING) return;
       const key = mockupKeyFor(p, i + 1, run.distinctPerPin);
       if (seen.has(key)) return;
       seen.add(key);
@@ -629,12 +694,22 @@ function ReviewBody({ runId }: { runId: string }) {
   }, [review.pins.map((p) => p.mockup).join('\n'), run.distinctPerPin]);
 
   const {
-    mockups,
-    errors: sceneErrors,
+    mockups: generatedMockups,
+    errors: generatedErrors,
     failure: sceneFailure,
     done: mockupsDone,
     total: mockupsTotal,
   } = useSceneMockups(product, jobs, run.styleDirection);
+
+  const titled = useTitledMockups(product, review.pins, run.distinctPerPin);
+  const mockups = useMemo(
+    () => ({ ...generatedMockups, ...titled.mockups }),
+    [generatedMockups, titled.mockups]
+  );
+  const sceneErrors = useMemo(
+    () => ({ ...generatedErrors, ...titled.errors }),
+    [generatedErrors, titled.errors]
+  );
 
   const selectedPin = review.pins[review.pin - 1];
   const selectedKey = selectedPin ? mockupKey(selectedPin, review.pin) : '';

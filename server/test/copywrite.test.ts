@@ -142,7 +142,7 @@ test('without an image the prompt names the product type instead', () => {
 
 test('several mockup types are all named, and copy is kept true of the design', () => {
   const text = buildCopyPrompt({ hasImage: true, mockups: ['Coffee cup', 'T-shirt', 'Basic marketing'] });
-  assert.match(text, /coffee cup, t-shirt and framed print mockups/);
+  assert.match(text, /coffee cup, t-shirt and art print mockups/);
   assert.match(text, /true of the design itself/);
 });
 

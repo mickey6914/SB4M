@@ -57,8 +57,8 @@ export type RunState = {
   copy: RunCopy;
 };
 
-// What the design goes on. "Basic marketing" (framed) and "Unframed wall art"
-// are clean shots the server composites itself — the artwork untouched, no
+// What the design goes on. "Basic marketing" (art + the pin's title) and
+// "Unframed wall art" are shots the server composites itself — the artwork untouched, no
 // AI, no credits. The rest are
 // the shop's mockup templates: each applies the artwork to a product, and the
 // prompt that does it lives server-side in scenes/templates.ts, which carries

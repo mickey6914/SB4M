@@ -30,8 +30,8 @@ export default function Scenes() {
             <h1 className="wizard-h1">Choose up to three mockups.</h1>
             <p className="page-lead" style={{ maxWidth: '40em', margin: 0 }}>
               What the design goes on. Pins take them in turn — pin 1 the first, pin 2 the second,
-              and round again. Basic marketing (framed) and Unframed wall art are clean shots of your
-              artwork, made exactly from your file with no AI.
+              and round again. Basic marketing (your artwork with the pin's title underneath) and
+              Unframed wall art are made exactly from your file, with no AI.
             </p>
           </div>
           <div className="scenes-header-actions">
