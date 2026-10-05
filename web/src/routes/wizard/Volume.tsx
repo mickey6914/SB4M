@@ -108,9 +108,9 @@ export default function Volume() {
                 </>
               ) : (
                 <>
-                  {run.mockups.length} image
+                  {Math.max(1, run.mockups.length)} image
                   {run.mockups.length === 1 ? '' : 's'}, about{' '}
-                  {mockupCredits(run.mockups.length)} credits — but pins sharing a
+                  {mockupCredits(Math.max(1, run.mockups.length))} credits — but pins sharing a
                   template get the <strong>identical</strong> picture, and Pinterest treats repeated
                   images as spam. Fine for a quick test, risky for a month's schedule.
                 </>

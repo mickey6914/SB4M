@@ -56,15 +56,23 @@ export default function Scenes() {
           })}
         </div>
         <div className="wizard-footer">
-          <button className="btn btn-primary" type="button" onClick={() => navigate('/run/15/progress')}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={run.mockups.length === 0}
+            title={run.mockups.length === 0 ? 'Pick at least one mockup first' : undefined}
+            onClick={() => navigate('/run/15/progress')}
+          >
             Generate pins
           </button>
           <button className="btn btn-secondary" type="button" onClick={() => navigate('/run/volume')}>
             Back
           </button>
           <span className="wizard-status">
-            {run.mockups.join(' · ')} · {run.mockups.length} of {MAX_MOCKUPS} chosen · {run.volume}{' '}
-            pins · {assetCount(run)} assets
+            {run.mockups.length === 0
+              ? 'Pick at least one mockup'
+              : `${run.mockups.join(' · ')} · ${run.mockups.length} of ${MAX_MOCKUPS} chosen`}{' '}
+            · {run.volume} pins · {assetCount(run)} assets
           </span>
         </div>
       </section>
