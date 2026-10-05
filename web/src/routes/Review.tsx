@@ -8,6 +8,7 @@ import {
   networksFor,
   NETWORK_CROP,
   pinsMissingCopy,
+  PINTEREST_DESC_MAX,
   pushSummary,
   TAG_TOTAL,
 } from '../state/posts';
@@ -558,6 +559,12 @@ function Inspector() {
           value={pin.desc}
           onChange={(e) => dispatch({ type: 'setDesc', text: e.target.value })}
         />
+        {/* Pinterest cuts a description at 500 characters, and its caption
+            adds hashtags after the description inside that same limit. */}
+        <div className={pin.desc.length > PINTEREST_DESC_MAX ? 'desc-count is-over' : 'desc-count'}>
+          {pin.desc.length} / {PINTEREST_DESC_MAX} · Pinterest's limit
+          {pin.desc.length > PINTEREST_DESC_MAX ? ' — Pinterest will cut this short' : ''}
+        </div>
       </div>
 
       <div className="rewrite-row">

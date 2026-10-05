@@ -688,3 +688,16 @@ The crop renderer takes `promo: {title, variant}` alongside the raw artwork for
 these pins. Review uses it for the four-crop preview and for the assets it
 pushes. The Basic marketing image in the grid is the 2:3 layout, drawn the same
 way.
+
+## 20. Descriptions sized for Pinterest
+
+2026-10-05: the seller said descriptions "read like a bible". Claude had been
+asked for 3–5 sentences and wrote several paragraphs.
+
+Pinterest caps a pin description at 500 characters, and every network's
+caption is built from the same description. Claude is now asked for 2–3 short
+sentences, at most 300 characters (`DESCRIPTION_MAX`), which leaves room under
+Pinterest's cap for the hashtags its caption adds. Anything longer that comes
+back is cut to the last whole sentence that fits, never mid-sentence. Review
+shows a running count against the 500-character limit, flagged when a hand
+edit goes over.
