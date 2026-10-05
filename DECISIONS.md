@@ -640,3 +640,29 @@ Two changes:
 
 Library's Duplicate still carries the mockups over on purpose. That's what
 duplicating is for.
+
+## 18. Basic marketing is a promo: art plus the pin's title
+
+Decided 2026-10-05, from three options rendered with the seller's own design.
+The framed version from §16 read as one more wall-art mockup, which wasn't
+what "basic marketing" meant to the seller.
+
+Basic marketing is now the artwork on a soft backdrop with **the pin's own
+title** set under it in bold serif, laid out like an ad. There's no second brand
+line: every pin already carries the EXPRESS ART VIBE band.
+
+**Where things sit, and why the art is smaller than you might expect.** Every
+pin is re-cropped per network and the band is laid over the bottom of each
+crop. A square crop of the 1200×1800 image keeps only rows 300–1500, and the
+band covers the bottom of that. So art and title both live in rows 300–1360,
+columns 150–1050 (`PROMO_SAFE`). Every crop shows the whole design and the
+whole headline, at the cost of empty backdrop above and below in the full
+Pinterest pin. SEO titles run long, so the headline wraps to at most three
+lines, shrinking the type first and then ending on a whole word.
+
+**The image follows the title.** Editing a pin's title, or picking another
+suggestion, redraws its Basic marketing image after a short pause. That pass
+runs apart from the AI mockups: those cost credits, and re-running that loop on
+a keystroke would request a generation still in flight a second time.
+
+Unframed wall art (art alone, soft shadow, no text) is unchanged.

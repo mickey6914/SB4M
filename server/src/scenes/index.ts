@@ -12,6 +12,8 @@ import { loadImageSource } from '../shared/load-image.js';
 // (scene, style, product) so re-selecting a scene is instant and free.
 
 type MockupBody = {
+  // The pin's title, printed under the artwork on a Basic marketing mockup.
+  title?: string;
   // The mockup type — what the design goes on (a template label). When set,
   // `scene` is the setting that pin is shot in. When absent, `scene` is read
   // the old way: a template label, or a §7 hybrid backdrop name.
@@ -63,6 +65,7 @@ export function registerSceneRoutes(app: FastifyInstance) {
       createHash('sha256').update(product).digest('base64'),
       req.body?.scale ?? null,
       req.body?.variant ?? null,
+      req.body?.title ?? '',
     ]);
     const hit = cache.get(key);
     if (hit) return reply.send({ ok: true, ...hit, cached: true });
@@ -84,12 +87,13 @@ export function registerSceneRoutes(app: FastifyInstance) {
         const image = await marketingMockup(
           productBuf,
           Number.isFinite(variantNumber) ? variantNumber : undefined,
-          compositeStyle
+          compositeStyle,
+          typeof req.body?.title === 'string' ? req.body.title.slice(0, 200) : ''
         );
         const payload = {
           image: `data:image/jpeg;base64,${image.toString('base64')}`,
           provider: 'composite',
-          model: compositeStyle === 'framed' ? 'basic-marketing' : 'unframed-wall-art',
+          model: compositeStyle === 'promo' ? 'basic-marketing' : 'unframed-wall-art',
         };
         cache.set(key, payload);
         if (cache.size > CACHE_MAX) {
