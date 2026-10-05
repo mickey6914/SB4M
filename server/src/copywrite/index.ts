@@ -39,6 +39,12 @@ export const TITLE_COUNT = 3;
 export const TAG_COUNT = 13;
 const TITLE_MAX = 100;
 
+// Pinterest caps a pin description at 500 characters, and every network's
+// caption is built from this one description. 300 leaves room under that cap
+// for the hashtags the Pinterest caption adds, and reads as a pin rather than
+// a page — the first descriptions ran to several paragraphs.
+export const DESCRIPTION_MAX = 300;
+
 export type PinCopy = {
   titles: string[];
   description: string;
@@ -63,7 +69,7 @@ type CopywriteBody = {
 // Connections can never break parsing. #ad stays out: whether a post needs a
 // disclosure is the seller's judgement, made per pin (DECISIONS.md §13).
 const FORMAT = `Return only JSON, no markdown fence, no commentary: {"titles": [3 strings], "description": string, "tags": [13 strings]}.
-Titles: max ${TITLE_MAX} characters, no emoji. Description: 3-5 sentences, plain text. Tags: lowercase, max 20 characters each.
+Titles: max ${TITLE_MAX} characters, no emoji. Description: 2-3 short sentences, plain text, at most ${DESCRIPTION_MAX} characters. Tags: lowercase, max 20 characters each.
 Do NOT add "#ad" or any other disclosure tag — the seller adds that themselves where a pin needs it.`;
 
 export type CopyPromptInput = {
@@ -132,6 +138,19 @@ function cleanList(value: unknown): string[] {
   return out;
 }
 
+// A description over the limit is cut back to the last whole sentence that
+// fits, so it never ends mid-thought. One long sentence with no break inside
+// the limit is cut at a word instead, with an ellipsis.
+export function clampDescription(text: string, max = DESCRIPTION_MAX): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const ends = [...head.matchAll(/[.!?](?=\s|$)/g)].map((m) => (m.index ?? 0) + 1);
+  const lastEnd = ends.filter((i) => i <= max).pop();
+  if (lastEnd && lastEnd >= max * 0.4) return t.slice(0, lastEnd).trim();
+  return `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
+}
+
 // Parse by slicing between the first { and last } to survive a stray
 // markdown fence, then validate the contract: 3 titles, a description, 13 tags.
 export function parsePinCopy(text: string): PinCopy | null {
@@ -151,7 +170,8 @@ export function parsePinCopy(text: string): PinCopy | null {
   const titles = cleanList(obj.titles).map((t) =>
     t.length <= TITLE_MAX ? t : t.slice(0, TITLE_MAX).replace(/\s+\S*$/, '')
   );
-  const description = typeof obj.description === 'string' ? obj.description.trim() : '';
+  const description =
+    typeof obj.description === 'string' ? clampDescription(obj.description.trim()) : '';
   // cleanList already drops case-insensitive duplicates, so lowercasing here
   // cannot introduce one.
   const tags = cleanList(obj.tags).map((t) => t.toLowerCase());

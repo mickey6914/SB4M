@@ -149,3 +149,40 @@ test('several mockup types are all named, and copy is kept true of the design', 
 test('a single mockup type still reads as one', () => {
   assert.match(buildCopyPrompt({ hasImage: true, mockups: ['Pillow'] }), /shown as a pillow mockup/);
 });
+
+// The first live descriptions ran to several paragraphs. Pinterest caps a
+// description at 500 characters, and the caption adds hashtags after it.
+test('the format asks for a short description within the limit', async () => {
+  const { DESCRIPTION_MAX } = await import('../src/copywrite/index.js');
+  assert.match(buildCopyPrompt({ hasImage: true }), new RegExp(`at most ${DESCRIPTION_MAX} characters`));
+});
+
+test('an over-long description is cut back to the last whole sentence', async () => {
+  const { clampDescription } = await import('../src/copywrite/index.js');
+  const s1 = 'A luminous nativity scene rendered in faux stained glass for your wall.';
+  const s2 = 'Mary, Joseph and the Christ child glow beneath a radiant Bethlehem star in sapphire and ruby.';
+  const s3 = 'Printed on crystal clear acrylic so light passes through and the colours shine like a chapel window.';
+  const s4 = 'A meaningful gift for anyone who treasures faith based decor at Christmas.';
+  const long = [s1, s2, s3, s4].join(' ');
+  const out = clampDescription(long, 300);
+  assert.ok(out.length <= 300, `${out.length} characters`);
+  assert.ok(out.endsWith('.'), 'ends on a full sentence');
+  assert.ok(long.startsWith(out));
+  assert.equal(clampDescription('Short and sweet.', 300), 'Short and sweet.');
+});
+
+test('one endless sentence is cut at a word with an ellipsis', async () => {
+  const { clampDescription } = await import('../src/copywrite/index.js');
+  const out = clampDescription('stained glass '.repeat(40).trim(), 120);
+  assert.ok(out.length <= 120);
+  assert.ok(out.endsWith('…'));
+  assert.doesNotMatch(out, /\s…$/);
+});
+
+test('the parser applies the limit to what Claude returns', () => {
+  const desc = 'This sentence is about sixty characters long, give or take. '.repeat(8).trim();
+  const copy = parsePinCopy(reply({ description: desc }));
+  assert.ok(copy);
+  assert.ok(copy.description.length <= 300, `${copy.description.length}`);
+  assert.ok(copy.description.endsWith('.'));
+});

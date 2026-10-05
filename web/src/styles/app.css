@@ -1588,3 +1588,16 @@ html, body, #root {
 .tag-check span {
   overflow-wrap: anywhere;
 }
+
+/* Description length against Pinterest's 500-character cap. */
+.desc-count {
+  font-size: 12px;
+  color: var(--color-neutral-700);
+  margin-top: 6px;
+  text-align: right;
+}
+
+.desc-count.is-over {
+  color: var(--color-accent-700);
+  font-weight: 600;
+}
