@@ -23,6 +23,13 @@ export type Pin = {
   // URL; editable because an upload-based run has no listing to inherit one
   // from, and a pin with no destination is a pin nobody can buy from.
   link: string;
+  // Which batch of run copy filled this pin ('' for none), and whether the
+  // seller has since changed its words themselves. A newer batch replaces
+  // every pin it did not write and the seller has not touched — it used to
+  // fill only empty pins, which let stale copy and fresh copy sit side by
+  // side in one push (DECISIONS.md §21).
+  copyId: string;
+  handEdited: boolean;
 };
 
 export type OverlaySize = 'small' | 'medium' | 'large';
@@ -60,6 +67,7 @@ const RUN_COPY_NOTE = (n: number) =>
 
 export function seedReview(run: RunState): ReviewState {
   const copy = run.copy.status === 'done' ? run.copy : null;
+  const copyId = copy?.id ?? '';
   const pins: Pin[] = Array.from({ length: run.volume }, (_, i) => ({
     // No copy yet means blank, not a placeholder: a made-up title would slip
     // past the push's missing-copy check and go out as if it were written.
@@ -75,6 +83,8 @@ export function seedReview(run: RunState): ReviewState {
     mockup: run.mockups[i % run.mockups.length] ?? 'Wall art',
     approved: false,
     link: run.listing?.url ?? run.link ?? '',
+    copyId,
+    handEdited: false,
   }));
   return {
     pins,
@@ -114,7 +124,7 @@ type Action =
   | { type: 'writeStart' }
   | { type: 'writeSuccess'; copy: RunCopyResult }
   // The run's copy landed after Review opened (the seller skipped ahead).
-  | { type: 'applyRunCopy'; copy: RunCopyResult }
+  | { type: 'applyRunCopy'; copy: RunCopyResult & { id: string } }
   | { type: 'writeFailure'; message: string }
   | { type: 'reseed'; state: ReviewState };
 
@@ -136,7 +146,7 @@ function withCount(state: ReviewState): ReviewState {
   return { ...state, approved: state.pins.filter((p) => p.approved).length };
 }
 
-function reducer(state: ReviewState, action: Action): ReviewState {
+export function reviewReducer(state: ReviewState, action: Action): ReviewState {
   switch (action.type) {
     case 'selectPin':
       return { ...state, pin: action.pin };
@@ -145,15 +155,15 @@ function reducer(state: ReviewState, action: Action): ReviewState {
     case 'setProduct':
       return { ...state, product: action.text };
     case 'setTitle':
-      return updateSelected(state, { title: action.text });
+      return updateSelected(state, { title: action.text, handEdited: true });
     case 'setDesc':
-      return updateSelected(state, { desc: action.text });
+      return updateSelected(state, { desc: action.text, handEdited: true });
     case 'toggleKeyword': {
       const pin = state.pins[state.pin - 1];
       const keywords = pin.keywords.map((k, i) =>
         i === action.index ? { ...k, on: !k.on } : k
       );
-      return updateSelected(state, { keywords });
+      return updateSelected(state, { keywords, handEdited: true });
     }
     case 'setOverlay':
       return { ...state, overlay: action.text };
@@ -191,7 +201,9 @@ function reducer(state: ReviewState, action: Action): ReviewState {
       return { ...state, writing: true, writeError: '' };
     case 'writeSuccess': {
       // Rewrite with AI: the selected pin only.
-      const next = updateSelected(state, copyForPin(action.copy, state.pin - 1));
+      // An explicit rewrite is the seller's choice for this pin, so a later
+      // batch leaves it alone.
+      const next = updateSelected(state, { ...copyForPin(action.copy, state.pin - 1), handEdited: true });
       return {
         ...next,
         writing: false,
@@ -201,11 +213,12 @@ function reducer(state: ReviewState, action: Action): ReviewState {
       };
     }
     case 'applyRunCopy': {
-      // Fill only pins still without copy, so nothing the seller already
-      // typed is overwritten.
+      // Replace every pin this batch did not already write, unless the seller
+      // changed its words themselves — so no pin keeps another batch's copy.
+      if (state.pins.every((p) => p.copyId === action.copy.id || p.handEdited)) return state;
       const pins = state.pins.map((p, i) => {
-        if (p.title.trim() || p.desc.trim()) return p;
-        return { ...p, ...copyForPin(action.copy, i) };
+        if (p.handEdited || p.copyId === action.copy.id) return p;
+        return { ...p, ...copyForPin(action.copy, i), copyId: action.copy.id };
       });
       return {
         ...state,
@@ -228,7 +241,7 @@ const ReviewContext = createContext<{
 } | null>(null);
 
 export function ReviewProvider({ run, children }: { run: RunState; children: ReactNode }) {
-  const [review, dispatch] = useReducer(reducer, run, seedReview);
+  const [review, dispatch] = useReducer(reviewReducer, run, seedReview);
   return <ReviewContext.Provider value={{ review, dispatch }}>{children}</ReviewContext.Provider>;
 }
 

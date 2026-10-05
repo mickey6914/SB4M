@@ -32,7 +32,9 @@ export default function Progress() {
     const key = `${run.runNumber}|${run.hero ?? 1}`;
     if (inFlight.has(key)) return;
     inFlight.add(key);
-    dispatch({ type: 'setCopy', copy: { status: 'writing' } });
+    const forRun = run.runNumber;
+    const forHero = run.hero ?? 1;
+    dispatch({ type: 'setCopy', copy: { status: 'writing' }, forRun, forHero });
     requestCopy({
       image,
       product: run.listing?.description,
@@ -43,8 +45,10 @@ export default function Progress() {
       inFlight.delete(key);
       dispatch({
         type: 'setCopy',
+        forRun,
+        forHero,
         copy: res.ok
-          ? { status: 'done', ...res.copy }
+          ? { status: 'done', ...res.copy, id: `${forRun}:${Date.now()}` }
           : { status: 'failed', message: res.message },
       });
     });

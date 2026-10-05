@@ -701,3 +701,24 @@ Pinterest's cap for the hashtags its caption adds. Anything longer that comes
 back is cut to the last whole sentence that fits, never mid-sentence. Review
 shows a running count against the 500-character limit, flagged when a hand
 edit goes over.
+
+## 21. Copy belongs to its run
+
+Found 2026-10-05: the seller reported old and new captions mixing. The live
+account confirmed it. One push at 03:09 held two pins whose descriptions *and*
+hashtags came from two different batches of copy.
+
+Two faults combined:
+
+1. **Copy wasn't tied to a run.** The copy request starts on the Generating
+   screen. If one was still in flight when the seller began the next run, its
+   result landed in the new run.
+2. **Fresh copy only filled empty pins.** When the right copy arrived, pins
+   already holding the stray copy kept it. Title suggestions switched to the
+   new batch, so clicking them made titles look current while descriptions and
+   tags stayed stale.
+
+Now each copy result carries the run number and hero it was written for, and
+the run ignores any that don't match. Each pin records which batch filled it
+and whether the seller has changed its words. A new batch replaces every pin it
+didn't write unless the seller typed in it or rewrote it with AI.
