@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StepRail from '../../components/StepRail';
 import { ImageIcon } from '../../components/icons';
-import { useRun, type Listing } from '../../state/run';
+import { useRun } from '../../state/run';
 
 // Recent links are illustrative until the server owns run history.
 const RECENT = [
@@ -64,32 +64,7 @@ async function downscale(file: File): Promise<string> {
 export default function Product() {
   const { run, dispatch } = useRun();
   const navigate = useNavigate();
-  const [pulling, setPulling] = useState(false);
-  const [error, setError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
-
-  const pull = async () => {
-    setPulling(true);
-    setError('');
-    try {
-      const res = await fetch('/api/ingest', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url: run.link }),
-      });
-      const json: { ok: boolean; listing?: Listing; message?: string } = await res.json();
-      if (json.ok && json.listing) {
-        dispatch({ type: 'setListing', listing: json.listing });
-        navigate('/run/hero');
-      } else {
-        setError(json.message ?? 'Something went wrong reading that link — try again.');
-      }
-    } catch {
-      setError('Could not reach the server — is it running? Try again in a moment.');
-    } finally {
-      setPulling(false);
-    }
-  };
 
   const addFiles = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -109,34 +84,31 @@ export default function Product() {
         <div>
           <h1 className="wizard-h1">Where's the product?</h1>
           <p className="page-lead" style={{ maxWidth: '36em' }}>
-            Paste the listing link and every image on it comes across. One link per run — that
-            keeps the pins about one product.
+            Drop your product photos, and paste the listing link pins should send buyers to. One
+            product per run — that keeps the pins about one thing.
           </p>
-          <div className="link-row">
-            <input
-              className="input"
-              type="text"
-              value={run.link}
-              onChange={(e) => dispatch({ type: 'setLink', link: e.target.value })}
-              placeholder="Paste an Etsy, Shopify or Amazon product link"
-              style={{ flex: 1, fontSize: '14.5px' }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && run.link.trim() && !pulling) pull();
-              }}
-            />
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={!run.link.trim() || pulling}
-              onClick={pull}
-            >
-              {pulling ? 'Pulling…' : 'Pull images'}
-            </button>
+          {/* The link is the pins' destination, not a source of images. The app
+              used to fetch it for photos, but Etsy blocks requests from servers
+              like ours, so every pull ended in "The site blocked the request".
+              Nothing is fetched from it now. */}
+          <div className="field-label" style={{ marginBottom: 6 }}>
+            Etsy listing link — where pins send buyers
           </div>
-          {error && <p className="ingest-error">{error}</p>}
+          <input
+            className="input"
+            type="url"
+            value={run.link}
+            onChange={(e) => dispatch({ type: 'setLink', link: e.target.value })}
+            placeholder="https://www.etsy.com/listing/…"
+            style={{ width: '100%', maxWidth: 700, fontSize: '14.5px' }}
+          />
+          <p className="rail-note" style={{ marginTop: 6, maxWidth: 700 }}>
+            Pinterest uses it as each pin's destination; Facebook and Instagram add it to the end of
+            the caption. Without it, buyers have no way to click through.
+          </p>
           <div className="or-divider">
             <span className="or-divider-rule" />
-            <span className="or-divider-label">or upload</span>
+            <span className="or-divider-label">product photos</span>
             <span className="or-divider-rule" />
           </div>
           <input

@@ -223,11 +223,11 @@ export function assetCount(state: RunState): number {
   return state.volume * cropCount;
 }
 
-// The hero step's candidates. The seller's own uploads win outright: mixing
-// in listing images put photos on the hero step the seller never chose. Only
-// a run with no uploads at all falls back to the pulled listing's images.
+// The hero step's candidates: the seller's own uploads, and only those.
+// Listing images used to be offered too, but the listing fetch is blocked by
+// Etsy, and mixing sources put photos on the hero step the seller never chose.
 export function heroImages(state: RunState): string[] {
-  return (state.uploads.length ? state.uploads : (state.listing?.images ?? [])).slice(0, 6);
+  return state.uploads.slice(0, 6);
 }
 
 // The image every mockup and the copy build from. Photo 1 when nothing has

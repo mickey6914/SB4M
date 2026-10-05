@@ -7,10 +7,8 @@ import { heroImages, useRun } from '../../state/run';
 export default function Hero() {
   const { run, dispatch } = useRun();
   const navigate = useNavigate();
-  // Only the photos this run actually has: the seller's uploads, or — for a
-  // run with none — the pulled listing's images. Empty tiles are not drawn.
+  // Only the photos the seller uploaded. Empty tiles are not drawn.
   const images = heroImages(run);
-  const fromUploads = run.uploads.length > 0;
 
   // Photo 1 is preselected, so a one-photo run is a single click to Continue.
   useEffect(() => {
@@ -25,11 +23,7 @@ export default function Hero() {
       <section style={{ padding: '36px 32px 40px' }}>
         <h1 className="wizard-h1">Pick the hero image.</h1>
         <p className="page-lead" style={{ maxWidth: '40em', marginBottom: 12 }}>
-          {fromUploads
-            ? 'These are the photos you uploaded. '
-            : images.length > 0
-              ? `${images.length === 1 ? 'One image' : `${images.length} images`} came off the listing. `
-              : ''}
+          {images.length > 0 ? 'These are the photos you uploaded. ' : ''}
           Choose the one every mockup builds from — the sharpest, cleanest shot of the product itself.
         </p>
         {images.length > 0 && (
@@ -37,15 +31,9 @@ export default function Hero() {
             Only one photo? It's already selected. The copy is written from this image too.
           </p>
         )}
-        {!fromUploads && run.listing && (
-          <p className="stub-note" style={{ margin: '0 0 24px' }}>
-            {run.listing.title}
-            {run.listing.price ? ` · ${run.listing.price}` : ''} · pulled from {run.listing.source}
-          </p>
-        )}
         {images.length === 0 && (
           <p className="ingest-error" style={{ margin: '0 0 24px' }}>
-            Nothing came across yet — go back and drop your own photos, or pull the listing.
+            No photos yet — go back and drop at least one product photo into the upload tiles.
           </p>
         )}
         <div className="hero-grid hero-grid-uploads">
