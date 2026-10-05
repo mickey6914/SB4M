@@ -9,6 +9,8 @@ import {
   type OverlayPos,
   type OverlaySize,
 } from './render.js';
+import { barHeightFor, renderCrop } from './render.js';
+import { promoImage } from '../scenes/marketing.js';
 
 // Crop rendering route. Accepts an http(s) source (a listing image) or a
 // data: URL (a seller upload), renders the requested ratios with the overlay
@@ -28,7 +30,33 @@ type RenderBody = {
   overlay?: string;
   overlayPos?: string;
   overlaySize?: string;
+  // A Basic marketing pin: `src` is the raw artwork, and each crop is drawn
+  // at its own shape with this title, rather than cut out of one picture.
+  promo?: { title?: string; variant?: number };
 };
+
+// Draw a Basic marketing crop at its own shape, keeping the band's space
+// clear, then lay the band on. A middle band crosses the art whatever the
+// layout, so only top and bottom reserve room.
+export async function renderPromoCrops(
+  art: Buffer,
+  ratios: CropRatio[],
+  promo: { title: string; variant?: number },
+  overlay: { text: string; pos: OverlayPos; size: OverlaySize } | null
+): Promise<Record<string, Buffer>> {
+  const out: Record<string, Buffer> = {};
+  for (const ratio of ratios) {
+    const { width, height } = CROP_SIZES[ratio];
+    const band = overlay ? barHeightFor(width, overlay.size) : 0;
+    const reserve = {
+      top: overlay?.pos === 'top' ? band : 0,
+      bottom: overlay?.pos === 'bottom' ? band : 0,
+    };
+    const base = await promoImage(art, promo.title, promo.variant, { width, height }, reserve);
+    out[ratio] = await renderCrop(base, ratio, overlay);
+  }
+  return out;
+}
 
 function isPrivateHost(hostname: string): boolean {
   if (process.env.ALLOW_PRIVATE_INGEST === '1') return false;
@@ -119,7 +147,14 @@ export function registerCropRoutes(app: FastifyInstance) {
     const size = isOverlaySize(req.body?.overlaySize ?? '')
       ? (req.body!.overlaySize as OverlaySize)
       : DEFAULT_OVERLAY_SIZE;
-    const key = cropCacheKey(src, ratios, overlayText, pos, size);
+    const promo =
+      req.body?.promo && typeof req.body.promo === 'object'
+        ? {
+            title: typeof req.body.promo.title === 'string' ? req.body.promo.title.slice(0, 200) : '',
+            variant: Number.isFinite(Number(req.body.promo.variant)) ? Number(req.body.promo.variant) : undefined,
+          }
+        : null;
+    const key = cropCacheKey(src, ratios, overlayText, pos, size) + (promo ? JSON.stringify(promo) : '');
     const hit = cache.get(key);
     if (hit) return reply.send({ ok: true, images: hit });
 
@@ -132,11 +167,10 @@ export function registerCropRoutes(app: FastifyInstance) {
     }
 
     try {
-      const rendered = await renderAll(
-        source,
-        ratios,
-        overlayText.trim() ? { text: overlayText, pos, size } : null
-      );
+      const overlay = overlayText.trim() ? { text: overlayText, pos, size } : null;
+      const rendered = promo
+        ? await renderPromoCrops(source, ratios, promo, overlay)
+        : await renderAll(source, ratios, overlay);
       const images: Record<string, string> = {};
       for (const [ratio, buf] of Object.entries(rendered)) {
         images[ratio] = `data:image/jpeg;base64,${buf.toString('base64')}`;

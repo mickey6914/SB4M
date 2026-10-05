@@ -7,9 +7,10 @@ import {
   isBasicMarketing,
   MARKETING_SIZE,
   marketingMockup,
-  PROMO_SAFE,
   wrapTitle,
 } from '../src/scenes/marketing.js';
+import { renderPromoCrops } from '../src/crops/index.js';
+import { barHeightFor, CROP_SIZES, type CropRatio } from '../src/crops/render.js';
 
 async function art(w = 900, h = 900, colour = '#d01c8b'): Promise<Buffer> {
   // A flat colour: any redraw or recolour of the art would show.
@@ -65,21 +66,40 @@ test('a basic marketing mockup is 2:3 and keeps the artwork’s own colours', as
   assert.ok(!close(await pixel(out, 10, 10), MAGENTA), 'corner is backdrop');
 });
 
-// Every network re-crops the pin and lays the brand band over the bottom, so
-// the art and the headline have to sit where a square crop still shows them.
-test('art and title stay inside the area every crop keeps', async () => {
-  const out = await marketingMockup(await art(), 1, 'promo', 'Faux Stained Glass Nativity Wall Art');
-  const dark = (p: number[]) => p[0] < 90 && p[1] < 90 && p[2] < 90; // the title ink
-  const anyContent = (p: number[]) => close(p, MAGENTA) || dark(p);
-  const [top, bottom] = await span(out, anyContent, 'rows');
-  const [left, right] = await span(out, anyContent, 'cols');
-  assert.ok(top >= PROMO_SAFE.top - 2, `content starts at row ${top}`);
-  assert.ok(bottom <= PROMO_SAFE.bottom + 2, `content ends at row ${bottom}`);
-  assert.ok(left >= PROMO_SAFE.left - 4 && right <= PROMO_SAFE.right + 4, `content spans ${left}-${right}`);
-  // And there really is a title below the art.
-  const [, artBottom] = await span(out, (p) => close(p, MAGENTA), 'rows');
-  const [inkTop] = await span(out, dark, 'rows');
-  assert.ok(inkTop > artBottom, 'the title sits under the art');
+// Each crop is drawn at its own shape, so the art fills it — and the band's
+// space at the bottom stays clear of art and words.
+test('every crop shape gets large art and a title, clear of the band', async () => {
+  const title = 'Nativity Scene Stained Glass Art, Holy Family Christmas Wall Decor, Baby Jesus Manger Print';
+  const ratios = Object.keys(CROP_SIZES) as CropRatio[];
+  const out = await renderPromoCrops(await art(780, 1000), ratios, { title, variant: 1 }, {
+    text: 'EXPRESS ART VIBE',
+    pos: 'bottom',
+    size: 'medium',
+  });
+  const dark = (p: number[]) => p[0] < 90 && p[1] < 90 && p[2] < 90;
+  for (const ratio of ratios) {
+    const { width, height } = CROP_SIZES[ratio];
+    const band = barHeightFor(width, 'medium');
+    const [artTop, artBottom] = await span(out[ratio], (p) => close(p, MAGENTA), 'rows');
+    const [, inkBottom] = await span(out[ratio], dark, 'rows');
+    assert.ok(inkBottom > artBottom, `${ratio}: title under the art`);
+    assert.ok(inkBottom < height - band, `${ratio}: title clear of the band (ends ${inkBottom}, band from ${height - band})`);
+    // Large: the art takes over half the crop's height on the tall shapes,
+    // and well over a third on the square.
+    const share = (artBottom - artTop) / height;
+    assert.ok(share > (ratio === '1:1' ? 0.45 : 0.5), `${ratio}: art is ${Math.round(share * 100)}% of the height`);
+  }
+});
+
+test('with the band on top, the top is kept clear instead', async () => {
+  const out = await renderPromoCrops(await art(780, 1000), ['2:3'], { title: 'Holy Night', variant: 1 }, {
+    text: 'EXPRESS ART VIBE',
+    pos: 'top',
+    size: 'large',
+  });
+  const band = barHeightFor(CROP_SIZES['2:3'].width, 'large');
+  const [artTop] = await span(out['2:3'], (p) => close(p, MAGENTA), 'rows');
+  assert.ok(artTop > band, `art starts at ${artTop}, band ends at ${band}`);
 });
 
 test('long SEO titles wrap to at most three lines and end on a whole word', () => {

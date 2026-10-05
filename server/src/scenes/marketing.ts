@@ -49,17 +49,18 @@ export function backdropFor(variant?: number): (typeof BACKDROPS)[number] {
   return BACKDROPS[i];
 }
 
-// — The promo layout, and why it sits where it does —
+// — The promo layout —
 //
-// Every pin is re-cropped per network, and the brand band is laid over the
-// bottom of each crop. A square (1:1) crop of this 1200×1800 image keeps only
-// rows 300–1500, and its band covers the bottom ~138px of that. So the art and
-// the title both live inside rows 300–1360 and columns 150–1050 (a 9:16 crop
-// trims the sides): every network's crop shows the whole design and the whole
-// headline, and the band never sits on the words.
-export const PROMO_SAFE = { top: 300, bottom: 1360, left: 150, right: 1050 } as const;
+// Basic marketing is drawn at each crop's own shape rather than cut out of one
+// picture (DECISIONS.md §19). Cutting one 2:3 image down to a square forced the
+// art and title into a short strip in the middle so the square still held them,
+// which left the art small everywhere. Drawn per shape, the art fills each crop
+// with the title under it, and the space the brand band will occupy is kept
+// clear so the band never sits on the words.
+export type PromoReserve = { top: number; bottom: number };
 
 const TITLE_MAX_LINES = 3;
+// Type sizes for a 1200px-wide canvas; scaled to each crop's width.
 const TITLE_SIZES = [64, 58, 52, 46];
 // Average advance of bold serif capitals and lowercase, in ems. A slight
 // over-estimate, so a line errs short rather than running past the margin.
@@ -73,12 +74,16 @@ function escapeXml(s: string): string {
 // type before dropping words. SEO titles run long, so past the smallest size
 // the headline keeps its first words and ends cleanly on a whole word — no
 // ellipsis on an ad.
-export function wrapTitle(title: string, maxWidth = PROMO_SAFE.right - PROMO_SAFE.left): {
+export function wrapTitle(
+  title: string,
+  maxWidth = 1000,
+  sizes: number[] = TITLE_SIZES
+): {
   lines: string[];
   fontSize: number;
 } {
   const words = title.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  if (words.length === 0) return { lines: [], fontSize: TITLE_SIZES[0] };
+  if (words.length === 0) return { lines: [], fontSize: sizes[0] };
 
   const wrap = (size: number): string[] => {
     const perLine = Math.max(8, Math.floor(maxWidth / (size * SERIF_ADVANCE_EM)));
@@ -97,11 +102,11 @@ export function wrapTitle(title: string, maxWidth = PROMO_SAFE.right - PROMO_SAF
     return lines;
   };
 
-  for (const size of TITLE_SIZES) {
+  for (const size of sizes) {
     const lines = wrap(size);
     if (lines.length <= TITLE_MAX_LINES) return { lines, fontSize: size };
   }
-  const smallest = TITLE_SIZES[TITLE_SIZES.length - 1];
+  const smallest = sizes[sizes.length - 1];
   return { lines: wrap(smallest).slice(0, TITLE_MAX_LINES), fontSize: smallest };
 }
 
@@ -116,8 +121,12 @@ async function fitArt(art: Buffer, maxW: number, maxH: number) {
   return { png, w: meta.width ?? maxW, h: meta.height ?? maxH };
 }
 
-function backdropSvg(look: (typeof BACKDROPS)[number], extra = ''): string {
-  const { width, height } = MARKETING_SIZE;
+function backdropSvg(
+  look: (typeof BACKDROPS)[number],
+  extra = '',
+  width: number = MARKETING_SIZE.width,
+  height: number = MARKETING_SIZE.height
+): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -133,8 +142,8 @@ function backdropSvg(look: (typeof BACKDROPS)[number], extra = ''): string {
   </svg>`;
 }
 
-function shadowRect(left: number, top: number, w: number, h: number): string {
-  const offset = Math.round(MARKETING_SIZE.width * 0.012);
+function shadowRect(left: number, top: number, w: number, h: number, canvasW: number = MARKETING_SIZE.width): string {
+  const offset = Math.round(canvasW * 0.012);
   return `<rect x="${left + offset}" y="${top + offset * 2}" width="${w}" height="${h}" fill="#000" opacity="0.22" filter="url(#soft)"/>`;
 }
 
@@ -158,18 +167,46 @@ export async function marketingMockup(
       .toBuffer();
   }
 
-  // Promo: art above, title below, both inside the crop-safe area.
-  const { lines, fontSize } = wrapTitle(title);
-  const lineHeight = Math.round(fontSize * 1.18);
-  const gap = 44;
-  const textBlock = lines.length ? lines.length * lineHeight : 0;
-  const safeH = PROMO_SAFE.bottom - PROMO_SAFE.top;
-  const artMaxH = safeH - (textBlock ? textBlock + gap : 0);
-  const { png, w, h } = await fitArt(art, PROMO_SAFE.right - PROMO_SAFE.left, artMaxH);
+  // The source image assumes the default band: medium, along the bottom.
+  return promoImage(art, title, variant, { width, height }, { top: 0, bottom: Math.round(width * 0.115) });
+}
 
-  // Centre the art + title group vertically within the safe area.
+// Art above, title below, sized to fill a canvas of any shape while keeping
+// the band's space (reserve) clear.
+export async function promoImage(
+  art: Buffer,
+  title: string,
+  variant: number | undefined,
+  size: { width: number; height: number },
+  reserve: PromoReserve
+): Promise<Buffer> {
+  const { width, height } = size;
+  const look = backdropFor(variant);
+  const scale = width / MARKETING_SIZE.width;
+  const margin = Math.round(width * 0.06);
+  const area = {
+    top: reserve.top + margin,
+    bottom: height - reserve.bottom - margin,
+    left: margin,
+    right: width - margin,
+  };
+  const areaW = area.right - area.left;
+  const areaH = area.bottom - area.top;
+
+  const { lines, fontSize } = wrapTitle(
+    title,
+    areaW,
+    TITLE_SIZES.map((s) => Math.round(s * scale))
+  );
+  const lineHeight = Math.round(fontSize * 1.18);
+  const gap = Math.round(36 * scale);
+  const textBlock = lines.length ? lines.length * lineHeight : 0;
+  const artMaxH = Math.max(50, areaH - (textBlock ? textBlock + gap : 0));
+  const { png, w, h } = await fitArt(art, areaW, artMaxH);
+
+  // Centre the art + title group vertically in the clear area.
   const groupH = h + (textBlock ? gap + textBlock : 0);
-  const artTop = PROMO_SAFE.top + Math.round((safeH - groupH) / 2);
+  const artTop = area.top + Math.max(0, Math.round((areaH - groupH) / 2));
   const artLeft = Math.round((width - w) / 2);
   const firstBaseline = artTop + h + gap + Math.round(fontSize * 0.92);
 
@@ -182,7 +219,7 @@ export async function marketingMockup(
     )
     .join('\n');
 
-  return sharp(Buffer.from(backdropSvg(look, shadowRect(artLeft, artTop, w, h) + text)))
+  return sharp(Buffer.from(backdropSvg(look, shadowRect(artLeft, artTop, w, h, width) + text, width, height)))
     .composite([{ input: png, left: artLeft, top: artTop }])
     .jpeg({ quality: 92 })
     .toBuffer();

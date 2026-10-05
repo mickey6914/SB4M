@@ -666,3 +666,25 @@ runs apart from the AI mockups: those cost credits, and re-running that loop on
 a keystroke would request a generation still in flight a second time.
 
 Unframed wall art (art alone, soft shadow, no text) is unchanged.
+
+## 19. Basic marketing is drawn per crop, so the art can be large
+
+Found 2026-10-05: the seller said the Basic marketing art was too small.
+
+§18 drew one 2:3 picture and cut every network's crop out of it. To keep the
+title inside the square crop, art and title had to fit a short strip in the
+middle (`PROMO_SAFE`), so the art was small in every crop, the tall ones
+included.
+
+Each crop of a Basic marketing pin is now **drawn at its own shape** from the
+raw artwork, which is the same "re-placed per ratio, never sliced" idea the
+band has always used. The art fills each shape with the title under it, and the
+band's space (bottom or top, at the chosen size) is kept clear. In a 2:3 pin
+the art now takes most of the height. The square stays the tightest, since a
+tall artwork plus a title can only be so big in a square, but it's the largest
+that fits there too.
+
+The crop renderer takes `promo: {title, variant}` alongside the raw artwork for
+these pins. Review uses it for the four-crop preview and for the assets it
+pushes. The Basic marketing image in the grid is the 2:3 layout, drawn the same
+way.
