@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import StepRail from '../../components/StepRail';
 import { ImageIcon } from '../../components/icons';
 import { useRun } from '../../state/run';
+import { useWorkspace } from '../../state/workspace';
 
 // Recent links are illustrative until the server owns run history.
 const RECENT = [
@@ -63,6 +64,8 @@ async function downscale(file: File): Promise<string> {
 
 export default function Product() {
   const { run, dispatch } = useRun();
+  const { rules } = useWorkspace();
+  const productType = run.productType ?? rules.productType;
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -105,6 +108,25 @@ export default function Product() {
           <p className="rail-note" style={{ marginTop: 6, maxWidth: 700 }}>
             Pinterest uses it as each pin's destination; Facebook and Instagram add it to the end of
             the caption. Without it, buyers have no way to click through.
+          </p>
+          {/* The product type goes into every title, description and tag, so
+              it has to fit THIS design. It used to be a workspace setting
+              only, so every run's copy said "acrylic faux stained glass wall
+              art" whatever the product was. */}
+          <div className="field-label" style={{ margin: '18px 0 6px' }}>
+            Product type — used in the titles, description and tags
+          </div>
+          <input
+            className="input"
+            type="text"
+            value={productType}
+            onChange={(e) => dispatch({ type: 'setProductType', text: e.target.value })}
+            placeholder="e.g. acrylic wall art, sticker sheet — or leave blank"
+            style={{ width: '100%', maxWidth: 700, fontSize: '14.5px' }}
+          />
+          <p className="rail-note" style={{ marginTop: 6, maxWidth: 700 }}>
+            Starts from your default in Connections. Change it for this product, or clear it and the
+            copy is written from the image alone.
           </p>
           <div className="or-divider">
             <span className="or-divider-rule" />

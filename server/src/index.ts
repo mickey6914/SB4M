@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import sharp from 'sharp';
 import fastifyStatic from '@fastify/static';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,6 +22,14 @@ try {
   console.error(`\n${(err as Error).message}\n`);
   process.exit(1);
 }
+
+// Image work on a small instance (Render's free plan has 512MB). libvips keeps
+// a cache of decoded images and runs one thread per core by default; with
+// several mockups and crops in flight that was enough to run the instance out
+// of memory, and a restart drops every request in progress — each pin then
+// reported "could not reach the server". Trade a little speed for headroom.
+sharp.cache(false);
+sharp.concurrency(1);
 
 const app = Fastify({ logger: true, bodyLimit: 20_000_000 });
 

@@ -109,13 +109,23 @@ function mockupSentence(input: CopyPromptInput): string | null {
 // Pure, so the exact text Claude receives is testable.
 export function buildCopyPrompt(input: CopyPromptInput): string {
   const template = input.prompt?.trim() || DEFAULT_COPY_PROMPT;
-  const productType = input.productType?.trim() || DEFAULT_PRODUCT_TYPE;
-  const instruction = template.split('{product_type}').join(productType);
+  // Absent means the default; an empty string means the seller cleared it for
+  // this run — the copy then comes from the image alone. It used to fall back
+  // to the default either way, which put "acrylic faux stained glass wall
+  // art" into every caption whatever the design (DECISIONS.md §22).
+  const productType =
+    input.productType === undefined ? DEFAULT_PRODUCT_TYPE : input.productType.trim();
+  const instruction = template
+    .split('{product_type}')
+    .join(productType)
+    .replace(/ {2,}/g, ' ');
 
   const context = [
     input.hasImage
       ? 'Base everything on the attached product image: its subject, style, colours and design.'
-      : `Product: ${productType}.`,
+      : productType
+        ? `Product: ${productType}.`
+        : null,
     mockupSentence(input),
     input.scenes?.length ? `Pin scenes: ${input.scenes.join(', ')}.` : null,
     input.styleDirection?.trim() ? `Style direction: ${input.styleDirection.trim()}.` : null,

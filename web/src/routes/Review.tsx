@@ -12,7 +12,7 @@ import {
   pushSummary,
   TAG_TOTAL,
 } from '../state/posts';
-import { assetCount, CROPS, heroImage, useRun, type Crop } from '../state/run';
+import { assetCount, CROPS, heroImage, productTypeFor, useRun, type Crop } from '../state/run';
 import {
   CROP_NETWORKS,
   ReviewProvider,
@@ -52,10 +52,53 @@ function mockupKeyFor(pin: Pick<Pin, 'mockup'>, n: number, distinct: boolean): s
   return distinct ? `${pin.mockup}#${n}` : pin.mockup;
 }
 
+// One mockup request, with one automatic retry when the server could not be
+// reached or answered with something that isn't the app (a restart on the
+// host shows up as an HTML error page, not JSON). The failure message says
+// which of those happened instead of a generic "could not reach".
+async function postMockup(
+  body: Record<string, unknown>,
+  isCancelled: () => boolean
+): Promise<{ ok: true; image: string } | { ok: false; message: string }> {
+  let last = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 4000));
+      if (isCancelled()) return { ok: false, message: 'Cancelled.' };
+    }
+    let res: Response;
+    try {
+      res = await fetch('/api/scenes/mockup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      last = 'Lost the connection to the server while building this mockup — it may have restarted.';
+      continue;
+    }
+    let json: { ok?: boolean; image?: string; message?: string };
+    try {
+      json = await res.json();
+    } catch {
+      last = `The server answered ${res.status} instead of a mockup — it may have been restarting.`;
+      continue;
+    }
+    if (json.ok && json.image) return { ok: true, image: json.image };
+    // A real refusal from the app (a bad key, a provider error) is not
+    // retried: the same request would get the same answer.
+    return { ok: false, message: json.message || `The server refused this mockup (${res.status}).` };
+  }
+  return { ok: false, message: last };
+}
+
 function useSceneMockups(
   product: string | undefined,
   jobs: MockupJob[],
-  styleDirection: string
+  styleDirection: string,
+  // Bumped by "Try again". Mockups that already succeeded come back from the
+  // server's cache at no cost; only the failed ones are generated again.
+  retry: number
 ) {
   const [mockups, setMockups] = useState<Record<string, string>>({});
   // Why each failed mockup failed, by key — shown on that pin's card rather
@@ -78,23 +121,12 @@ function useSceneMockups(
       const failed: Record<string, string> = {};
       for (const job of wanted) {
         if (cancelled) return;
-        try {
-          const res = await fetch('/api/scenes/mockup', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              mockup: job.mockup,
-              styleDirection,
-              product,
-              variant: job.variant,
-            }),
-          });
-          const json = await res.json();
-          if (json.ok && json.image) found[job.key] = json.image;
-          else failed[job.key] = json.message || `The server refused the ${job.mockup} mockup.`;
-        } catch {
-          failed[job.key] = 'Could not reach the server to build the mockups.';
-        }
+        const result = await postMockup(
+          { mockup: job.mockup, styleDirection, product, variant: job.variant },
+          () => cancelled
+        );
+        if (result.ok) found[job.key] = result.image;
+        else failed[job.key] = result.message;
         if (cancelled) return;
         // Publish each one as it lands rather than making the seller wait for
         // the whole set — on a 30-pin run that is minutes of staring at nothing.
@@ -115,7 +147,7 @@ function useSceneMockups(
     return () => {
       cancelled = true;
     };
-  }, [product, signature, styleDirection]);
+  }, [product, signature, styleDirection, retry]);
 
   // total is 0 when there is nothing to generate FROM. Without this the banner
   // sat at "0 of 30" forever on a Review opened with no run behind it — the
@@ -130,7 +162,12 @@ function useSceneMockups(
 // one after the seller stops typing is free and quick.
 const BASIC_MARKETING = 'Basic marketing';
 
-function useTitledMockups(product: string | undefined, pins: Pin[], distinct: boolean) {
+function useTitledMockups(
+  product: string | undefined,
+  pins: Pin[],
+  distinct: boolean,
+  retry: number
+) {
   const [mockups, setMockups] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const wanted = useMemo(() => {
@@ -155,25 +192,19 @@ function useTitledMockups(product: string | undefined, pins: Pin[], distinct: bo
     const t = setTimeout(async () => {
       for (const job of jobs) {
         if (cancelled) return;
-        try {
-          const res = await fetch('/api/scenes/mockup', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ mockup: BASIC_MARKETING, product, title: job.title, variant: job.variant }),
+        const result = await postMockup(
+          { mockup: BASIC_MARKETING, product, title: job.title, variant: job.variant },
+          () => cancelled
+        );
+        if (cancelled) return;
+        if (result.ok) {
+          setMockups((m) => ({ ...m, [job.key]: result.image }));
+          setErrors((e) => {
+            const { [job.key]: _gone, ...rest } = e;
+            return rest;
           });
-          const json = await res.json();
-          if (cancelled) return;
-          if (json.ok && json.image) {
-            setMockups((m) => ({ ...m, [job.key]: json.image }));
-            setErrors((e) => {
-              const { [job.key]: _gone, ...rest } = e;
-              return rest;
-            });
-          } else {
-            setErrors((e) => ({ ...e, [job.key]: json.message || 'The Basic marketing image could not be made.' }));
-          }
-        } catch {
-          if (!cancelled) setErrors((e) => ({ ...e, [job.key]: 'Could not reach the server to build the mockup.' }));
+        } else {
+          setErrors((e) => ({ ...e, [job.key]: result.message }));
         }
       }
     }, 600);
@@ -181,7 +212,7 @@ function useTitledMockups(product: string | undefined, pins: Pin[], distinct: bo
       cancelled = true;
       clearTimeout(t);
     };
-  }, [product, signature]);
+  }, [product, signature, retry]);
 
   return { mockups, errors };
 }
@@ -345,6 +376,7 @@ function PinGrid({
   errors,
   product,
   mockupKey,
+  onRetry,
 }: {
   rendered: Rendered | null;
   networks: string[];
@@ -356,6 +388,9 @@ function PinGrid({
   // How a pin finds its own image. Depends on whether the run generates one
   // mockup per type or one per pin, so it is passed in rather than guessed.
   mockupKey: (pin: Pin, pinNumber: number) => string;
+  // Re-request failed mockups. Absent while generation is still running, so
+  // a retry can never re-request one already in flight.
+  onRetry?: () => void;
 }) {
   const { review, dispatch } = useReview();
   const hidden = review.pins.length - review.shown;
@@ -396,7 +431,19 @@ function PinGrid({
                   <div className="pin-failed">
                     <strong>Mockup failed</strong>
                     <span>{error}</span>
-                    <span>This pin will push your original artwork unless you regenerate.</span>
+                    <span>Until it's made, this pin would push your original artwork.</span>
+                    {onRetry && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRetry();
+                        }}
+                      >
+                        Try again
+                      </button>
+                    )}
                   </div>
                 )}
                 {!baked && (
@@ -476,6 +523,7 @@ function Inspector() {
       mockups: [pin.mockup],
       styleDirection: run.styleDirection,
       rules,
+      productType: productTypeFor(run, rules.productType),
     });
     if (res.ok) dispatch({ type: 'writeSuccess', copy: res.copy });
     else dispatch({ type: 'writeFailure', message: res.message });
@@ -673,6 +721,7 @@ function ReviewBody({ runId }: { runId: string }) {
   // left unlabelled, so the seller can judge which pins actually needed it.
   const [adNotice, setAdNotice] = useState('');
   const [pushProgress, setPushProgress] = useState('');
+  const [retryMockups, setRetryMockups] = useState(0);
   const pushNetworks = useMemo(() => networksFor(run.fanOut), [run.fanOut]);
   const staleAccounts = useAccountHealth(pushNetworks, rules.accountByNetwork);
   const product = heroImage(run);
@@ -716,9 +765,10 @@ function ReviewBody({ runId }: { runId: string }) {
     failure: sceneFailure,
     done: mockupsDone,
     total: mockupsTotal,
-  } = useSceneMockups(product, jobs, run.styleDirection);
+  } = useSceneMockups(product, jobs, run.styleDirection, retryMockups);
 
-  const titled = useTitledMockups(product, review.pins, run.distinctPerPin);
+  const titled = useTitledMockups(product, review.pins, run.distinctPerPin, retryMockups);
+  const generatingMockups = mockupsTotal > 0 && mockupsDone < mockupsTotal;
   const mockups = useMemo(
     () => ({ ...generatedMockups, ...titled.mockups }),
     [generatedMockups, titled.mockups]
@@ -958,7 +1008,14 @@ function ReviewBody({ runId }: { runId: string }) {
       {/* A scene that failed to generate used to be invisible: the pin quietly
           showed the untouched photo. Say it plainly instead — the pins are
           still usable, they just are not the mockups that were asked for. */}
-      {sceneFailure && <div className="push-error-bar">{sceneFailure}</div>}
+      {(sceneFailure || Object.keys(titled.errors).length > 0) && !generatingMockups && (
+        <div className="push-error-bar push-error-row">
+          <span>{sceneFailure || 'A Basic marketing image could not be made.'}</span>
+          <button type="button" className="btn band-btn-light" onClick={() => setRetryMockups((n) => n + 1)}>
+            Try again
+          </button>
+        </div>
+      )}
       {/* Every run reaches Pinterest, and Pinterest will not publish a pin
           without a board. The push is still allowed — Content360 accepts the
           post and holds it — but saying so here beats a silent failure. */}
@@ -986,6 +1043,7 @@ function ReviewBody({ runId }: { runId: string }) {
             errors={sceneErrors}
             product={product}
             mockupKey={mockupKey}
+            onRetry={generatingMockups ? undefined : () => setRetryMockups((n) => n + 1)}
           />
         </div>
         <Inspector />

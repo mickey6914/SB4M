@@ -11,7 +11,9 @@ export type CopyRequest = {
   product?: string;
   mockups: string[];
   styleDirection: string;
-  rules: Pick<WorkspaceRules, 'copyPrompt' | 'productType'>;
+  rules: Pick<WorkspaceRules, 'copyPrompt'>;
+  // This run's product type — may be empty, meaning "none".
+  productType: string;
 };
 
 export type CopyResponse = { ok: true; copy: RunCopyResult } | { ok: false; message: string };
@@ -29,7 +31,7 @@ export async function requestCopy(req: CopyRequest): Promise<CopyResponse> {
         mockups: req.mockups,
         styleDirection: req.styleDirection || undefined,
         prompt: req.rules.copyPrompt,
-        productType: req.rules.productType,
+        productType: req.productType,
       }),
     });
     const json = await res.json();

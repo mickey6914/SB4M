@@ -1601,3 +1601,16 @@ html, body, #root {
   color: var(--color-accent-700);
   font-weight: 600;
 }
+
+/* A notice with its action beside it. */
+.push-error-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pin-failed .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}

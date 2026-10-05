@@ -50,6 +50,11 @@ export type RunState = {
   hero: number | null;
   volume: Volume;
   styleDirection: string;
+  // What this run's product is, for the copy ("acrylic faux stained glass
+  // wall art"). null means "use the workspace default from Connections"; an
+  // empty string means the seller cleared it, and the copy comes from the
+  // image alone.
+  productType: string | null;
   // What the design goes on: up to three of MOCKUP_CATALOG. Pins rotate
   // through them — pin 1 the first, pin 2 the second, and round again.
   mockups: string[];
@@ -128,6 +133,7 @@ export const initialRun: RunState = {
   hero: null,
   volume: 30,
   styleDirection: '',
+  productType: null,
   mockups: DEFAULT_MOCKUPS,
   fanOut: 'all',
   crops: { '2:3': true, '1:1': true, '4:5': true, '9:16': false },
@@ -142,6 +148,7 @@ type Action =
   | { type: 'setHero'; hero: number }
   | { type: 'setVolume'; volume: Volume }
   | { type: 'setStyleDirection'; text: string }
+  | { type: 'setProductType'; text: string }
   | { type: 'toggleMockup'; mockup: string }
   | { type: 'setMockups'; mockups: string[] }
   | { type: 'setFanOut'; fanOut: FanOut }
@@ -181,6 +188,8 @@ export function runReducer(state: RunState, action: Action): RunState {
       return { ...state, volume: action.volume };
     case 'setStyleDirection':
       return { ...state, styleDirection: action.text };
+    case 'setProductType':
+      return { ...state, productType: action.text };
     case 'toggleMockup': {
       if (state.mockups.includes(action.mockup)) {
         return { ...state, mockups: state.mockups.filter((m) => m !== action.mockup) };
@@ -209,6 +218,7 @@ export function runReducer(state: RunState, action: Action): RunState {
         ? {
             ...fresh,
             mockups: state.mockups,
+            productType: state.productType,
             styleDirection: state.styleDirection,
             volume: state.volume,
             fanOut: state.fanOut,
@@ -263,4 +273,9 @@ export function useNewRun() {
     dispatch({ type: 'reset', keepRecipe: opts.keepRecipe });
     navigate('/run/product');
   };
+}
+
+// The product type this run's copy is written for.
+export function productTypeFor(run: RunState, workspaceDefault: string): string {
+  return run.productType ?? workspaceDefault;
 }
