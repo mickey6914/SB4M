@@ -9,8 +9,7 @@ import type { RunCopyResult } from './posts';
 export type CopyRequest = {
   image?: string;
   product?: string;
-  mockup: string;
-  scenes: string[];
+  mockups: string[];
   styleDirection: string;
   rules: Pick<WorkspaceRules, 'copyPrompt' | 'productType'>;
 };
@@ -27,8 +26,7 @@ export async function requestCopy(req: CopyRequest): Promise<CopyResponse> {
       body: JSON.stringify({
         image: req.image,
         product: req.product || undefined,
-        mockup: req.mockup,
-        scenes: req.scenes,
+        mockups: req.mockups,
         styleDirection: req.styleDirection || undefined,
         prompt: req.rules.copyPrompt,
         productType: req.rules.productType,

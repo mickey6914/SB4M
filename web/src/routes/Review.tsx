@@ -36,29 +36,19 @@ const CROP_RATIOS: Record<Crop, string> = {
 
 type Rendered = Record<string, string>;
 
-// Hybrid scene mockups: the server generates an empty background per scene and
-// composites the seller's real product photo onto it. The product is never sent
-// through a generative model, so it cannot be altered.
+// Mockups are generated one at a time, on purpose. Firing them together made
+// the small instance compete with itself for memory, and a failure there was
+// invisible. Each lands as it is ready, and a failure shows on its own card.
 //
-// One request per DISTINCT scene, not per pin — a run reuses its three
-// backgrounds across all its pins, and the server caches by (scene, style,
-// product), so a 30-pin run still costs three images.
-//
-// They run one at a time on purpose. Firing them together made the small
-// instance compete with itself for memory while sharp was compositing, and a
-// failure there was invisible: the UI quietly showed the untouched photo under
-// a caption still claiming a scene. Failures are now surfaced, not swallowed.
-// A job is one mockup to generate: the mockup type the design goes on, the
-// scene it is shot in, and the key it is stored under. With one image per
-// scene the key is mockup + scene, so pins sharing a scene share it. With one
-// per pin the key carries the pin number, which also becomes the `variant`
-// the server folds into its cache key — the only thing stopping two pins
-// collapsing onto one generation.
-type MockupJob = { key: string; mockup: string; scene: string; variant?: string };
+// A job is one mockup to generate: the mockup type the design goes on and the
+// key it is stored under. With one image per mockup type the key is the type,
+// so pins sharing a type share it. With one per pin the key carries the pin
+// number, which also becomes the `variant` the server folds into its cache
+// key — the only thing stopping two pins collapsing onto one generation.
+type MockupJob = { key: string; mockup: string; variant?: string };
 
-function mockupKeyFor(pin: Pick<Pin, 'mockup' | 'scene'>, n: number, distinct: boolean): string {
-  const base = `${pin.mockup}|${pin.scene}`;
-  return distinct ? `${base}#${n}` : base;
+function mockupKeyFor(pin: Pick<Pin, 'mockup'>, n: number, distinct: boolean): string {
+  return distinct ? `${pin.mockup}#${n}` : pin.mockup;
 }
 
 function useSceneMockups(
@@ -93,7 +83,6 @@ function useSceneMockups(
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
               mockup: job.mockup,
-              scene: job.scene,
               styleDirection,
               product,
               variant: job.variant,
@@ -221,7 +210,7 @@ function CropPreview({
 }: {
   src?: string;
   rendered: Rendered | null;
-  // Whether what is on screen really is a scene mockup. The caption used to
+  // Whether what is on screen really is a mockup. The caption used to
   // assert one unconditionally, including when generating it had failed.
   hasScene: boolean;
   sceneError?: string;
@@ -241,7 +230,7 @@ function CropPreview({
           Overlay sits at the {review.overlayPos} of every crop — re-placed per ratio, never
           sliced.{' '}
           {hasScene
-            ? `${pin.mockup}${pin.scene ? ` · ${pin.scene}` : ''} mockup.`
+            ? `${pin.mockup} mockup.`
             : sceneError
               ? `The ${pin.mockup.toLowerCase()} mockup failed — ${sceneError} Showing your original artwork.`
               : 'Mockup still generating — showing your original artwork for now.'}
@@ -291,7 +280,7 @@ function PinGrid({
   errors: Record<string, string>;
   product?: string;
   // How a pin finds its own image. Depends on whether the run generates one
-  // mockup per scene or one per pin, so it is passed in rather than guessed.
+  // mockup per type or one per pin, so it is passed in rather than guessed.
   mockupKey: (pin: Pin, pinNumber: number) => string;
 }) {
   const { review, dispatch } = useReview();
@@ -371,7 +360,6 @@ function PinGrid({
               <div className="pin-title">{pin.title || <em>No title yet</em>}</div>
               <div className="pin-sub">
                 {pin.mockup}
-                {pin.scene ? ` · ${pin.scene}` : ''}
               </div>
               <div className="pin-chips">
                 {networks.map((net, j) => (
@@ -411,8 +399,7 @@ function Inspector() {
     const res = await requestCopy({
       image: heroImage(run),
       product: review.product,
-      mockup: pin.mockup,
-      scenes: pin.scene ? [pin.scene] : [],
+      mockups: [pin.mockup],
       styleDirection: run.styleDirection,
       rules,
     });
@@ -618,8 +605,8 @@ function ReviewBody({ runId }: { runId: string }) {
       dispatch({ type: 'writeFailure', message: run.copy.message });
   }, [run.copy, dispatch]);
 
-  // What to generate. Off, that is one image per mockup + scene and pins
-  // sharing a scene share it; on, it is one per pin. The key is what a card
+  // What to generate. Off, that is one image per mockup type and pins
+  // sharing a type share it; on, it is one per pin. The key is what a card
   // looks its own image up by, so it is computed the same way in both places.
   const mockupKey = (pin: Pin, n: number) => mockupKeyFor(pin, n, run.distinctPerPin);
   const jobs = useMemo<MockupJob[]>(() => {
@@ -632,15 +619,14 @@ function ReviewBody({ runId }: { runId: string }) {
       out.push({
         key,
         mockup: p.mockup,
-        scene: p.scene,
         ...(run.distinctPerPin ? { variant: String(i + 1) } : {}),
       });
     });
     return out;
-    // Only the mockup and scene of each pin matter — not its copy, which
+    // Only the mockup type of each pin matters — not its copy, which
     // changes on every keystroke in the inspector.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [review.pins.map((p) => `${p.mockup}|${p.scene}`).join('\n'), run.distinctPerPin]);
+  }, [review.pins.map((p) => p.mockup).join('\n'), run.distinctPerPin]);
 
   const {
     mockups,

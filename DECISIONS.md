@@ -594,3 +594,30 @@ The Dockerfile now installs `fonts-dejavu-core`. DejaVu Sans Bold is the face
 `fitLabel` was already measured against. A render test asserts the text spans
 more than half the bar. Verified inside `node:22-slim` itself: the test fails
 without the font and passes with it.
+
+## 16. Mockup types, not mockup + scenes; and a Basic marketing shot
+
+Decided 2026-10-05 with the seller.
+
+§14 added a Scenes step ("Cozy home setting", "Desk flat lay", …) next to the
+mockup picker, because the design notes asked for one. In use it conflicted:
+every AI mockup template already describes its own setting (the T-shirt is in
+a park, the Coffee cup at a kitchen table), so the model got two competing
+settings and the seller couldn't predict which would win. Style direction on
+the Volume step added a third voice.
+
+Back to what worked: **pick up to three mockup types, and pins rotate through
+them**, pin 1 the first, pin 2 the second, and round again. The Scenes step is
+gone. Style direction stays as the one modifier: colours, "no people" and the
+like apply to whichever mockups were picked. The copy prompt now names all
+three types and asks for titles and tags that hold for the design on any of
+them.
+
+**Basic marketing** is a new mockup type: the artwork straight-on in a simple
+frame on a plain, soft backdrop, like a listing's main photo. The server
+composites it with sharp, so no image model touches the artwork. That's §11's
+fidelity concern answered for the one shot where exactness matters most, and it
+costs no credits. Pins on it rotate through six backdrop and frame pairings so
+they aren't identical images (§12).
+
+The server still accepts a `scene` on `/api/scenes/mockup`; nothing sends one.

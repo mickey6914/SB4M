@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type Dispatch, type ReactNode } from 'react';
-import { sceneNames, type Crop, type RunState } from './run';
+import { type Crop, type RunState } from './run';
 import { copyForPin, type RunCopyResult, type Tag } from './posts';
 
 // Review-screen state per the handoff's State Management table. Pins are
@@ -14,8 +14,7 @@ export type Pin = {
   desc: string;
   keywords: Keyword[];
   flagged: boolean;
-  mockup: string; // what the design goes on
-  scene: string; // the scene this pin's mockup is shot in ('' when none chosen)
+  mockup: string; // what the design goes on — the run's mockup types, in rotation
   // Whether this pin goes out. Approval used to be a bare count, and the push
   // took the FIRST N pins — so rejecting pin 2 and approving pin 6 still sent
   // pins 1-4. Which pins are approved is a fact about the pins.
@@ -60,7 +59,6 @@ const RUN_COPY_NOTE = (n: number) =>
   `Written by Claude for all ${n} pins. Untick any tag you don't want.`;
 
 export function seedReview(run: RunState): ReviewState {
-  const scenes = sceneNames(run);
   const copy = run.copy.status === 'done' ? run.copy : null;
   const pins: Pin[] = Array.from({ length: run.volume }, (_, i) => ({
     // No copy yet means blank, not a placeholder: a made-up title would slip
@@ -72,9 +70,9 @@ export function seedReview(run: RunState): ReviewState {
     // field stays for when a real check arrives; inventing one is worse than
     // having none.
     flagged: false,
-    mockup: run.mockup,
-    // Each pin takes the next chosen scene in rotation.
-    scene: scenes.length ? scenes[i % scenes.length] : '',
+    // Each pin takes the next chosen mockup type in rotation: pin 1 the
+    // first, pin 2 the second, and round again.
+    mockup: run.mockups[i % run.mockups.length] ?? 'Wall art',
     approved: false,
     link: run.listing?.url ?? run.link ?? '',
   }));

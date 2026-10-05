@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { requestCopy } from '../../state/copy';
-import { assetCount, heroImage, sceneNames, useRun } from '../../state/run';
+import { assetCount, heroImage, useRun } from '../../state/run';
 import { useWorkspace } from '../../state/workspace';
 
 // The stages users read as an explanation of where their money and time go.
@@ -36,8 +36,7 @@ export default function Progress() {
     requestCopy({
       image,
       product: run.listing?.description,
-      mockup: run.mockup,
-      scenes: sceneNames(run),
+      mockups: run.mockups,
       styleDirection: run.styleDirection,
       rules,
     }).then((res) => {
@@ -95,10 +94,9 @@ export default function Progress() {
         ? 'Skipped'
         : 'Queued';
 
-  const sceneCount = Math.max(1, run.scenes.length);
   const stages = [
     {
-      label: `Rendering ${run.mockup.toLowerCase()} mockups in ${sceneCount} scene${sceneCount > 1 ? 's' : ''}`,
+      label: `Rendering mockups: ${run.mockups.join(', ')}`,
       state: simulated(0, MOCKUP_UNTIL),
     },
     { label: 'Writing 3 titles, description + 13 tags', state: copyState },
