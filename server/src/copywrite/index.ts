@@ -53,6 +53,8 @@ type CopywriteBody = {
   productType?: string;
   prompt?: string;
   mockup?: string;
+  // The run's mockup types, when it has several (pins rotate through them).
+  mockups?: string[];
   scenes?: string[];
   styleDirection?: string;
 };
@@ -68,11 +70,34 @@ export type CopyPromptInput = {
   prompt?: string;
   productType?: string;
   mockup?: string;
+  mockups?: string[];
   scenes?: string[];
   styleDirection?: string;
   product?: string;
   hasImage: boolean;
 };
+
+// How a mockup type reads in a sentence. "Basic marketing" is the app's name
+// for a clean framed shot, which is not something a buyer would search for.
+function mockupPhrase(label: string): string {
+  const l = label.trim().toLowerCase();
+  return l === 'basic marketing' ? 'framed print' : l;
+}
+
+function listPhrase(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function mockupSentence(input: CopyPromptInput): string | null {
+  const types = (input.mockups?.length ? input.mockups : input.mockup ? [input.mockup] : [])
+    .map(mockupPhrase)
+    .filter(Boolean);
+  if (types.length === 0) return null;
+  if (types.length === 1) return `It will be shown as a ${types[0]} mockup.`;
+  // Pins rotate through these, so every title has to work on all of them.
+  return `Pins will show it as ${listPhrase(types)} mockups, so keep every title and tag true of the design itself, not of one product.`;
+}
 
 // Pure, so the exact text Claude receives is testable.
 export function buildCopyPrompt(input: CopyPromptInput): string {
@@ -84,7 +109,7 @@ export function buildCopyPrompt(input: CopyPromptInput): string {
     input.hasImage
       ? 'Base everything on the attached product image: its subject, style, colours and design.'
       : `Product: ${productType}.`,
-    input.mockup ? `It will be shown as a ${input.mockup.toLowerCase()} mockup.` : null,
+    mockupSentence(input),
     input.scenes?.length ? `Pin scenes: ${input.scenes.join(', ')}.` : null,
     input.styleDirection?.trim() ? `Style direction: ${input.styleDirection.trim()}.` : null,
     input.product?.trim() ? `Extra notes from the seller: ${input.product.trim()}` : null,
@@ -190,6 +215,10 @@ export function registerCopywriteRoutes(app: FastifyInstance) {
       prompt: typeof body.prompt === 'string' ? body.prompt.slice(0, 4000) : undefined,
       productType: typeof body.productType === 'string' ? body.productType.slice(0, 200) : undefined,
       mockup: typeof body.mockup === 'string' ? body.mockup.slice(0, 80) : undefined,
+      mockups: (Array.isArray(body.mockups) ? body.mockups : [])
+        .filter((m): m is string => typeof m === 'string')
+        .slice(0, 6)
+        .map((m) => m.slice(0, 80)),
       scenes: (Array.isArray(body.scenes) ? body.scenes : [])
         .filter((s): s is string => typeof s === 'string')
         .slice(0, 6),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assetCount, heroImages, sceneNames, useNewRun, useRun } from '../state/run';
+import { assetCount, heroImages, useNewRun, useRun } from '../state/run';
 import { usePush } from '../state/push';
 
 // Library, README section 9: past runs, with duplicating a run reusing its
@@ -44,7 +44,7 @@ export default function Library() {
         ? 'Pinterest · Facebook'
         : 'Pinterest · Facebook · Instagram';
 
-  // Duplicating reuses the scenes and style direction, per the spec — the
+  // Duplicating reuses the mockups and style direction, per the spec — the
   // point is to skip re-deciding the look for a new product.
   const duplicate = () => newRun({ keepRecipe: true });
 
@@ -54,7 +54,7 @@ export default function Library() {
     <section className="page" style={{ padding: '28px 32px 40px' }}>
       <h1 className="calendar-h1">Library</h1>
       <p className="page-lead" style={{ maxWidth: '44em' }}>
-        Past runs. Duplicating a run reuses its scenes and style direction, so a new product starts
+        Past runs. Duplicating a run reuses its mockups and style direction, so a new product starts
         with the look you already settled on.
       </p>
 
@@ -168,11 +168,11 @@ export default function Library() {
         the same change that lets several runs sit side by side here.
       </p>
 
-      {run.scenes.length > 0 && (
+      {run.mockups.length > 0 && (
         <div className="library-recipe">
           <div className="rail-kicker">This run's recipe — what Duplicate reuses</div>
           <div className="rail-note" style={{ marginTop: 0 }}>
-            {run.mockup} · Scenes: {sceneNames(run).join(' · ')}
+            Mockups: {run.mockups.join(' · ')}
             {run.styleDirection ? ` — style: ${run.styleDirection}` : ''}
           </div>
         </div>

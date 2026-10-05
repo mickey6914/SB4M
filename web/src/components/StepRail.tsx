@@ -1,7 +1,7 @@
 // The wizard's step rail: four equal cells under the top bar. The current
 // step is an accent fill with white 700-weight text.
 
-const STEPS = ['1 · Product', '2 · Hero image', '3 · Volume', '4 · Scenes'];
+const STEPS = ['1 · Product', '2 · Hero image', '3 · Volume', '4 · Mockups'];
 
 export default function StepRail({ current }: { current: 1 | 2 | 3 | 4 }) {
   return (

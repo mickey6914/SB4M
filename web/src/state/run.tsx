@@ -2,7 +2,7 @@ import { createContext, useContext, useReducer, type ReactNode, type Dispatch } 
 import { useNavigate } from 'react-router-dom';
 
 // Client state for the run wizard, per the handoff's State Management table
-// and selection rules: hero is single-select; scenes are multi-select capped
+// and selection rules: hero is single-select; mockup types are multi-select capped
 // at three, FIFO; volume drives downstream counts.
 
 export const CROPS = ['2:3', '1:1', '4:5', '9:16'] as const;
@@ -42,10 +42,9 @@ export type RunState = {
   hero: number | null;
   volume: Volume;
   styleDirection: string;
-  // What the design goes on — one of MOCKUP_CATALOG.
-  mockup: string;
-  // Up to three scenes (1-based into SCENE_CATALOG). Pins rotate through them.
-  scenes: number[];
+  // What the design goes on: up to three of MOCKUP_CATALOG. Pins rotate
+  // through them — pin 1 the first, pin 2 the second, and round again.
+  mockups: string[];
   fanOut: FanOut;
   // Default crops per spec; 9:16 unchecked. Instagram's default fan-out crop
   // is 4:5 feed (DECISIONS.md #3).
@@ -58,11 +57,14 @@ export type RunState = {
   copy: RunCopy;
 };
 
-// The shop's own mockup templates — what the design goes on. Each one applies
-// the artwork to a product, and the prompt that does it lives server-side in
-// scenes/templates.ts. Labels must match those exactly: the server looks the
+// What the design goes on. "Basic marketing" is a clean framed shot the server
+// composites itself — the artwork untouched, no AI, no credits. The rest are
+// the shop's mockup templates: each applies the artwork to a product, and the
+// prompt that does it lives server-side in scenes/templates.ts, which carries
+// its own setting. Labels must match those exactly: the server looks the
 // template up by label.
 export const MOCKUP_CATALOG = [
+  'Basic marketing',
   'T-shirt',
   'Sweatshirt',
   'T-shirt flat lay',
@@ -77,21 +79,9 @@ export const MOCKUP_CATALOG = [
   'Planner stickers',
 ];
 
-export const DEFAULT_MOCKUP = 'Wall art';
+export const DEFAULT_MOCKUPS = ['Wall art'];
 
-// The settings a mockup is shot in. Pins rotate through the three chosen —
-// pin 1 scene A, pin 2 scene B, pin 3 scene C — with the design applied to
-// the run's mockup type in every one.
-export const SCENE_CATALOG = [
-  'Cozy home setting',
-  'Desk flat lay',
-  'Gift box scene',
-  'Digital screen mockup',
-  'Linen table',
-  'Window light',
-  'Studio shelf',
-  'Holiday wrap',
-];
+export const MAX_MOCKUPS = 3;
 
 export const STYLE_SUGGESTIONS = ['No people', 'Minimalist white', 'Fall colours', 'Bright & airy', 'Holiday'];
 
@@ -125,8 +115,7 @@ const initial: RunState = {
   hero: null,
   volume: 30,
   styleDirection: '',
-  mockup: DEFAULT_MOCKUP,
-  scenes: [],
+  mockups: DEFAULT_MOCKUPS,
   fanOut: 'all',
   crops: { '2:3': true, '1:1': true, '4:5': true, '9:16': false },
   distinctPerPin: true,
@@ -140,12 +129,11 @@ type Action =
   | { type: 'setHero'; hero: number }
   | { type: 'setVolume'; volume: Volume }
   | { type: 'setStyleDirection'; text: string }
-  | { type: 'toggleScene'; scene: number }
-  | { type: 'setScenes'; scenes: number[] }
+  | { type: 'toggleMockup'; mockup: string }
+  | { type: 'setMockups'; mockups: string[] }
   | { type: 'setFanOut'; fanOut: FanOut }
   | { type: 'toggleCrop'; crop: Crop }
   | { type: 'setDistinctPerPin'; on: boolean }
-  | { type: 'setMockup'; mockup: string }
   | { type: 'setCopy'; copy: RunCopy }
   // keepRecipe: Library's Duplicate starts a new product with the same look.
   | { type: 'reset'; keepRecipe?: boolean };
@@ -177,24 +165,24 @@ function reducer(state: RunState, action: Action): RunState {
       return { ...state, volume: action.volume };
     case 'setStyleDirection':
       return { ...state, styleDirection: action.text };
-    case 'toggleScene': {
-      if (state.scenes.includes(action.scene)) {
-        return { ...state, scenes: state.scenes.filter((s) => s !== action.scene) };
+    case 'toggleMockup': {
+      if (state.mockups.includes(action.mockup)) {
+        // Never zero: the last one stays until another is picked.
+        if (state.mockups.length === 1) return state;
+        return { ...state, mockups: state.mockups.filter((m) => m !== action.mockup) };
       }
       // Capped at three: choosing a fourth drops the oldest (FIFO).
-      const scenes = [...state.scenes, action.scene];
-      return { ...state, scenes: scenes.length > 3 ? scenes.slice(1) : scenes };
+      const mockups = [...state.mockups, action.mockup];
+      return { ...state, mockups: mockups.length > MAX_MOCKUPS ? mockups.slice(1) : mockups };
     }
-    case 'setScenes':
-      return { ...state, scenes: action.scenes.slice(0, 3) };
+    case 'setMockups':
+      return action.mockups.length ? { ...state, mockups: action.mockups.slice(0, MAX_MOCKUPS) } : state;
     case 'setFanOut':
       return { ...state, fanOut: action.fanOut };
     case 'toggleCrop':
       return { ...state, crops: { ...state.crops, [action.crop]: !state.crops[action.crop] } };
     case 'setDistinctPerPin':
       return { ...state, distinctPerPin: action.on };
-    case 'setMockup':
-      return { ...state, mockup: action.mockup };
     case 'setCopy':
       return { ...state, copy: action.copy };
     case 'reset': {
@@ -205,8 +193,7 @@ function reducer(state: RunState, action: Action): RunState {
       return action.keepRecipe
         ? {
             ...fresh,
-            mockup: state.mockup,
-            scenes: state.scenes,
+            mockups: state.mockups,
             styleDirection: state.styleDirection,
             volume: state.volume,
             fanOut: state.fanOut,
@@ -237,9 +224,6 @@ export function heroImage(state: RunState): string | undefined {
   return images[(state.hero ?? 1) - 1] ?? images[0];
 }
 
-export function sceneNames(state: RunState): string[] {
-  return state.scenes.map((s) => SCENE_CATALOG[s - 1]).filter(Boolean);
-}
 
 const RunContext = createContext<{ run: RunState; dispatch: Dispatch<Action> } | null>(null);
 
