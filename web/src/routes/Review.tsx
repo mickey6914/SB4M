@@ -235,9 +235,13 @@ function useRenderedCrops(
   src: string | undefined,
   overlay: string,
   pos: OverlayPos,
-  size: OverlaySize
+  size: OverlaySize,
+  // Set for a Basic marketing pin: src is then the raw artwork, and each crop
+  // is drawn at its own shape with this title (DECISIONS.md §19).
+  promo?: { title: string; variant?: number }
 ) {
   const [images, setImages] = useState<Rendered | null>(null);
+  const promoKey = promo ? JSON.stringify(promo) : '';
   useEffect(() => {
     if (!src) {
       setImages(null);
@@ -249,7 +253,13 @@ function useRenderedCrops(
         const res = await fetch('/api/crops/render', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ src, overlay, overlayPos: pos, overlaySize: size }),
+          body: JSON.stringify({
+            src,
+            overlay,
+            overlayPos: pos,
+            overlaySize: size,
+            ...(promoKey ? { promo: JSON.parse(promoKey) } : {}),
+          }),
         });
         const json = await res.json();
         if (!cancelled && json.ok && json.images) setImages(json.images);
@@ -261,7 +271,7 @@ function useRenderedCrops(
       cancelled = true;
       clearTimeout(t);
     };
-  }, [src, overlay, pos, size]);
+  }, [src, overlay, pos, size, promoKey]);
   return images;
 }
 
@@ -714,9 +724,27 @@ function ReviewBody({ runId }: { runId: string }) {
   const selectedPin = review.pins[review.pin - 1];
   const selectedKey = selectedPin ? mockupKey(selectedPin, review.pin) : '';
   const mockup = mockups[selectedKey];
+  // How a pin's crops are made. A Basic marketing pin is drawn at each crop's
+  // own shape from the raw artwork; every other pin is cut from its mockup.
+  const cropSourceFor = (pin: Pin, n: number) =>
+    pin.mockup === BASIC_MARKETING
+      ? {
+          src: product,
+          promo: { title: pin.title, variant: run.distinctPerPin ? n : undefined },
+        }
+      : { src: mockups[mockupKey(pin, n)] ?? product, promo: undefined };
+  const selectedSource = selectedPin
+    ? cropSourceFor(selectedPin, review.pin)
+    : { src: product, promo: undefined };
   // Crops render from the mockup when there is one, else the raw photo.
   const src = mockup ?? product;
-  const rendered = useRenderedCrops(src, review.overlay, review.overlayPos, review.overlaySize);
+  const rendered = useRenderedCrops(
+    selectedSource.src,
+    review.overlay,
+    review.overlayPos,
+    review.overlaySize,
+    selectedSource.promo
+  );
   const flagged = review.pins.filter((p) => p.flagged).length;
 
   // Build the outgoing batch: one post per included pin per fanned-out
@@ -786,7 +814,7 @@ function ReviewBody({ runId }: { runId: string }) {
     const assets = new Map<number, Rendered>();
     for (const { pin, n } of includedPins) {
       setPushProgress(`Preparing assets — ${assets.size + 1} of ${includedPins.length}…`);
-      const source = mockups[mockupKey(pin, n)] ?? product;
+      const { src: source, promo } = cropSourceFor(pin, n);
       if (!source) continue;
       try {
         const res = await fetch('/api/crops/render', {
@@ -797,6 +825,7 @@ function ReviewBody({ runId }: { runId: string }) {
             overlay: review.overlay,
             overlayPos: review.overlayPos,
             overlaySize: review.overlaySize,
+            ...(promo ? { promo } : {}),
           }),
         });
         const json = await res.json();
