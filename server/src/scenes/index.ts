@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { composeMockup } from './compose.js';
 import { generateBackground, generateMockupFromArt, providerStatus } from './providers.js';
 import { templateByLabel, TEMPLATE_LABELS } from './templates.js';
-import { BASIC_MARKETING, isBasicMarketing, marketingMockup } from './marketing.js';
+import { COMPOSITE_LABELS, compositeStyleFor, marketingMockup } from './marketing.js';
 import { loadImageSource } from '../shared/load-image.js';
 
 // Scene mockup route: generate an empty background for a scene, composite the
@@ -38,13 +38,13 @@ export function registerSceneRoutes(app: FastifyInstance) {
 
   // The mockup templates the picker offers. Served from here so the prompts
   // stay server-side and the wizard cannot drift out of step with them.
-  app.get('/api/scenes/templates', async () => ({ ok: true, templates: [BASIC_MARKETING, ...TEMPLATE_LABELS] }));
+  app.get('/api/scenes/templates', async () => ({ ok: true, templates: [...COMPOSITE_LABELS, ...TEMPLATE_LABELS] }));
 
   app.post<{ Body: MockupBody }>('/api/scenes/mockup', async (req, reply) => {
     const scene = (req.body?.scene ?? '').trim();
     const mockup = (req.body?.mockup ?? '').trim();
     const product = req.body?.product;
-    if (mockup && !templateByLabel(mockup) && !isBasicMarketing(mockup)) {
+    if (mockup && !templateByLabel(mockup) && !compositeStyleFor(mockup)) {
       return reply.status(422).send({ ok: false, message: `"${mockup}" is not a mockup type this app knows.` });
     }
     if (!scene && !mockup) {
@@ -75,16 +75,21 @@ export function registerSceneRoutes(app: FastifyInstance) {
       });
     }
 
-    // Basic marketing is composited here, not generated: the seller's own
-    // pixels go into the frame untouched. No provider, no credits.
-    if (isBasicMarketing(mockup || scene)) {
+    // Basic marketing and Unframed wall art are composited here, not
+    // generated: the seller's own pixels go in untouched. No provider, no credits.
+    const compositeStyle = compositeStyleFor(mockup || scene);
+    if (compositeStyle) {
       const variantNumber = Number(req.body?.variant);
       try {
-        const image = await marketingMockup(productBuf, Number.isFinite(variantNumber) ? variantNumber : undefined);
+        const image = await marketingMockup(
+          productBuf,
+          Number.isFinite(variantNumber) ? variantNumber : undefined,
+          compositeStyle
+        );
         const payload = {
           image: `data:image/jpeg;base64,${image.toString('base64')}`,
           provider: 'composite',
-          model: 'basic-marketing',
+          model: compositeStyle === 'framed' ? 'basic-marketing' : 'unframed-wall-art',
         };
         cache.set(key, payload);
         if (cache.size > CACHE_MAX) {

@@ -53,3 +53,30 @@ test('a tall artwork is fitted, never cropped', async () => {
   const top = await pixel(out, MARKETING_SIZE.width / 2, Math.round(MARKETING_SIZE.height * 0.2));
   assert.ok(close(top, [0x1f, 0x7a, 0x4a]), `upper art is ${top}`);
 });
+
+test('Unframed wall art is recognised and has no frame around the art', async () => {
+  const { compositeStyleFor } = await import('../src/scenes/marketing.js');
+  assert.equal(compositeStyleFor('Unframed wall art'), 'unframed');
+  assert.equal(compositeStyleFor('Basic marketing'), 'framed');
+  assert.equal(compositeStyleFor('Wall art'), null);
+
+  const a = await art();
+  const framed = await marketingMockup(a, 1, 'framed');
+  const unframed = await marketingMockup(a, 1, 'unframed');
+  // Find the art's left edge on the middle row, then look just outside it:
+  // framed has the white mat there, unframed has the backdrop (or its shadow).
+  const row = Math.round(MARKETING_SIZE.height * 0.47);
+  async function leftEdge(img: Buffer): Promise<number> {
+    for (let x = 0; x < MARKETING_SIZE.width; x++) {
+      if (close(await pixel(img, x, row), [0xd0, 0x1c, 0x8b])) return x;
+    }
+    return -1;
+  }
+  const fx = await leftEdge(framed);
+  const ux = await leftEdge(unframed);
+  assert.ok(fx > 0 && ux > 0);
+  assert.ok(close(await pixel(framed, fx - 5, row), [255, 255, 255]), 'framed has a white mat');
+  assert.ok(!close(await pixel(unframed, ux - 5, row), [255, 255, 255], 6), 'unframed has no mat');
+  // And with no frame to make room for, the art is shown larger.
+  assert.ok(ux < fx, 'unframed art is wider');
+});
