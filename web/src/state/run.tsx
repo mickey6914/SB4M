@@ -57,14 +57,16 @@ export type RunState = {
   copy: RunCopy;
 };
 
-// What the design goes on. "Basic marketing" is a clean framed shot the server
-// composites itself — the artwork untouched, no AI, no credits. The rest are
+// What the design goes on. "Basic marketing" (framed) and "Unframed wall art"
+// are clean shots the server composites itself — the artwork untouched, no
+// AI, no credits. The rest are
 // the shop's mockup templates: each applies the artwork to a product, and the
 // prompt that does it lives server-side in scenes/templates.ts, which carries
 // its own setting. Labels must match those exactly: the server looks the
 // template up by label.
 export const MOCKUP_CATALOG = [
   'Basic marketing',
+  'Unframed wall art',
   'T-shirt',
   'Sweatshirt',
   'T-shirt flat lay',

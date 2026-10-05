@@ -11,9 +11,23 @@ import sharp from 'sharp';
 // the design is exact, the image is instant, and it costs no credits.
 
 export const BASIC_MARKETING = 'Basic marketing';
+// The same shot without a frame or mat: the print (or acrylic panel) on its
+// own, lifted off the backdrop by a soft shadow.
+export const UNFRAMED_WALL_ART = 'Unframed wall art';
+
+export const COMPOSITE_LABELS = [BASIC_MARKETING, UNFRAMED_WALL_ART];
+
+export type CompositeStyle = 'framed' | 'unframed';
+
+export function compositeStyleFor(label: string | undefined): CompositeStyle | null {
+  const l = (label ?? '').trim().toLowerCase();
+  if (l === BASIC_MARKETING.toLowerCase()) return 'framed';
+  if (l === UNFRAMED_WALL_ART.toLowerCase()) return 'unframed';
+  return null;
+}
 
 export function isBasicMarketing(label: string | undefined): boolean {
-  return (label ?? '').trim().toLowerCase() === BASIC_MARKETING.toLowerCase();
+  return compositeStyleFor(label) === 'framed';
 }
 
 // 2:3, the same shape as the AI mockups, so every crop trims rather than guts.
@@ -36,14 +50,20 @@ export function backdropFor(variant?: number): (typeof BACKDROPS)[number] {
   return BACKDROPS[i];
 }
 
-export async function marketingMockup(art: Buffer, variant?: number): Promise<Buffer> {
+export async function marketingMockup(
+  art: Buffer,
+  variant?: number,
+  style: CompositeStyle = 'framed'
+): Promise<Buffer> {
   const { width, height } = MARKETING_SIZE;
   const look = backdropFor(variant);
+  const framed = style === 'framed';
 
-  // The artwork, never cropped: fitted inside the space the frame allows.
-  // Transparent clipart sits on the white mat rather than on black.
-  const maxArtW = Math.round(width * 0.62);
-  const maxArtH = Math.round(height * 0.6);
+  // The artwork, never cropped: fitted inside the space the frame allows —
+  // a little larger when there is no frame and mat to make room for.
+  // Transparent clipart sits on white rather than on black.
+  const maxArtW = Math.round(width * (framed ? 0.62 : 0.72));
+  const maxArtH = Math.round(height * (framed ? 0.6 : 0.66));
   const artPng = await sharp(art)
     .rotate()
     .resize(maxArtW, maxArtH, { fit: 'inside', withoutEnlargement: false })
@@ -54,8 +74,8 @@ export async function marketingMockup(art: Buffer, variant?: number): Promise<Bu
   const artW = meta.width ?? maxArtW;
   const artH = meta.height ?? maxArtH;
 
-  const mat = Math.round(width * 0.045);
-  const frame = Math.round(width * 0.022);
+  const mat = framed ? Math.round(width * 0.045) : 0;
+  const frame = framed ? Math.round(width * 0.022) : 0;
   const outerW = artW + 2 * (mat + frame);
   const outerH = artH + 2 * (mat + frame);
   const left = Math.round((width - outerW) / 2);
@@ -76,8 +96,12 @@ export async function marketingMockup(art: Buffer, variant?: number): Promise<Bu
     <rect width="${width}" height="${height}" fill="url(#bg)"/>
     <rect x="${left + shadowOffset}" y="${top + shadowOffset * 2}" width="${outerW}" height="${outerH}"
       fill="#000" opacity="0.22" filter="url(#soft)"/>
-    <rect x="${left}" y="${top}" width="${outerW}" height="${outerH}" fill="${look.frame}"/>
-    <rect x="${left + frame}" y="${top + frame}" width="${outerW - 2 * frame}" height="${outerH - 2 * frame}" fill="#ffffff"/>
+    ${
+      framed
+        ? `<rect x="${left}" y="${top}" width="${outerW}" height="${outerH}" fill="${look.frame}"/>
+    <rect x="${left + frame}" y="${top + frame}" width="${outerW - 2 * frame}" height="${outerH - 2 * frame}" fill="#ffffff"/>`
+        : ''
+    }
   </svg>`;
 
   return sharp(Buffer.from(svg))
