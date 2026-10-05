@@ -26,7 +26,15 @@ export type Listing = {
 export type RunCopy =
   | { status: 'idle' }
   | { status: 'writing' }
-  | { status: 'done'; titles: string[]; description: string; tags: string[] }
+  | {
+      status: 'done';
+      titles: string[];
+      description: string;
+      tags: string[];
+      // Which batch this is. Review uses it to tell its own copy from copy it
+      // has not applied yet.
+      id: string;
+    }
   | { status: 'failed'; message: string };
 
 export type RunState = {
@@ -111,7 +119,7 @@ export function toggleStylePhrase(text: string, chip: string): string {
   return parts.join(', ');
 }
 
-const initial: RunState = {
+export const initialRun: RunState = {
   runNumber: 1,
   shopId: 'eav',
   link: '',
@@ -139,11 +147,14 @@ type Action =
   | { type: 'setFanOut'; fanOut: FanOut }
   | { type: 'toggleCrop'; crop: Crop }
   | { type: 'setDistinctPerPin'; on: boolean }
-  | { type: 'setCopy'; copy: RunCopy }
+  // forRun: the run the copy was requested for. A request still in flight
+  // when the next run starts must not land in that run (DECISIONS.md §21).
+  // forHero likewise: copy written from a hero the seller has since swapped.
+  | { type: 'setCopy'; copy: RunCopy; forRun: number; forHero: number }
   // keepRecipe: Library's Duplicate starts a new product with the same look.
   | { type: 'reset'; keepRecipe?: boolean };
 
-function reducer(state: RunState, action: Action): RunState {
+export function runReducer(state: RunState, action: Action): RunState {
   switch (action.type) {
     case 'setLink':
       return { ...state, link: action.link };
@@ -187,12 +198,13 @@ function reducer(state: RunState, action: Action): RunState {
     case 'setDistinctPerPin':
       return { ...state, distinctPerPin: action.on };
     case 'setCopy':
+      if (action.forRun !== state.runNumber || action.forHero !== (state.hero ?? 1)) return state;
       return { ...state, copy: action.copy };
     case 'reset': {
       // A new run starts clean: no uploads, no listing, no hero, no copy —
       // and a new run number, so mockups and review state from the last run
       // cannot carry over.
-      const fresh = { ...initial, runNumber: state.runNumber + 1 };
+      const fresh = { ...initialRun, runNumber: state.runNumber + 1 };
       return action.keepRecipe
         ? {
             ...fresh,
@@ -231,7 +243,7 @@ export function heroImage(state: RunState): string | undefined {
 const RunContext = createContext<{ run: RunState; dispatch: Dispatch<Action> } | null>(null);
 
 export function RunProvider({ children }: { children: ReactNode }) {
-  const [run, dispatch] = useReducer(reducer, initial);
+  const [run, dispatch] = useReducer(runReducer, initialRun);
   return <RunContext.Provider value={{ run, dispatch }}>{children}</RunContext.Provider>;
 }
 
