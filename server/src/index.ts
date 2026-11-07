@@ -10,6 +10,7 @@ import { registerCropRoutes } from './crops/index.js';
 import { registerScheduleRoutes } from './schedule/index.js';
 import { registerPushRoutes } from './push/index.js';
 import { registerSceneRoutes } from './scenes/index.js';
+import { registerResearchRoutes } from './research/index.js';
 import { assertPasswordConfigured, registerPasswordGate } from './shared/password-gate.js';
 
 // Refuse to come up unprotected before anything is listening, rather than
@@ -60,6 +61,7 @@ registerCropRoutes(app);
 registerScheduleRoutes(app);
 registerPushRoutes(app);
 registerSceneRoutes(app);
+registerResearchRoutes(app);
 
 // — Serving the app itself —
 //

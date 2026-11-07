@@ -748,3 +748,42 @@ redeploying or out of memory on the 512MB free plan. Three changes:
   from the server's cache at no cost.
 - libvips runs with its cache off and one thread, trading a little speed for
   memory headroom on a small instance.
+
+## 23. Trend research lives in this app, and is honest about "profitable"
+
+Asked 2026-11-07: a companion that researches profitable clipart, wall art
+and home decor trends (colours, patterns, subjects) across Google, Bing,
+Pinterest, Etsy, Amazon and Shopify, and produces product ideas and image
+prompts.
+
+**Built in, not beside.** It is a section of the pin studio (Trend research
++ Idea board) rather than a second app: same URL, same password, same
+deploy, same Anthropic key, and an idea becomes a pin run in one click (it
+pre-fills product type, style direction and mockups; the seller still uploads
+the finished art, because the hero is always their own image).
+
+**Sources and what each costs.** Google, Bing and Amazon autocomplete and
+Shopify's public `/products.json` need no key. Etsy (Open API v3) and
+Pinterest (Trends API v5) are official and free with a developer key. Google
+Trends and Amazon product results come through SerpApi, because neither
+Google nor Amazon offers a usable public API for them (Bing's own search API
+was retired in 2025). Claude's web search adds dated trend articles. Every
+source degrades to a stated "no key" or "failed" note; one failing never
+sinks the report.
+
+**"Profitable" is shown as demand, not sales.** None of these sources
+publishes sales. The ranking weights buyer-typed phrases, measured growth
+(Pinterest, Google Trends), Etsy favourites per 30 days and Amazon "bought
+in past month", and rewards agreement across sources. The UI says this in
+plain words rather than labelling anything "profit".
+
+**Works without AI.** With no Anthropic key, a rules-based generator builds
+ideas and prompts from the same ranked signals. Claude, when present, gets
+the numbers in a digest and is told to cite them. Its call uses
+server-side refusal fallback so a declined request still returns a report.
+
+**Untested against the live wire.** The build environment could not reach
+any of these services, so every client is verified against recorded response
+shapes in `server/test/research.test.ts`, not live calls. The Etsy key format
+(`keystring` vs `keystring:shared_secret`) is handled both ways because
+Etsy changed it for newer apps.

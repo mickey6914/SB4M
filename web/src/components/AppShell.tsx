@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { activeShop, WORKSPACE } from '../data/workspace';
 import { heroImages, useNewRun, useRun } from '../state/run';
+import { useResearch } from '../state/research';
 import {
+  BulbIcon,
   CalendarIcon,
   CheckIcon,
   ChevronDownIcon,
@@ -10,6 +12,7 @@ import {
   ImageIcon,
   LinkIcon,
   PlusIcon,
+  TrendIcon,
 } from './icons';
 
 // Sidebar destinations per the handoff's Navigation model. Any wizard step
@@ -19,6 +22,8 @@ const NAV = [
   { to: '/run/product', label: 'New run', icon: PlusIcon, match: (p: string) => p.startsWith('/run') },
   { to: '/review/15', label: 'Review queue', icon: CheckIcon, match: (p: string) => p.startsWith('/review') },
   { to: '/calendar', label: 'Calendar', icon: CalendarIcon, match: (p: string) => p.startsWith('/calendar') },
+  { to: '/research', label: 'Trend research', icon: TrendIcon, match: (p: string) => p.startsWith('/research') },
+  { to: '/ideas', label: 'Idea board', icon: BulbIcon, match: (p: string) => p.startsWith('/ideas') },
   { to: '/library', label: 'Library', icon: ImageIcon, match: (p: string) => p.startsWith('/library') },
   { to: '/connections', label: 'Connections', icon: LinkIcon, match: (p: string) => p.startsWith('/connections') },
 ];
@@ -28,6 +33,7 @@ export default function AppShell() {
   const navigate = useNavigate();
   const { run } = useRun();
   const newRun = useNewRun();
+  const ideaCount = useResearch().board.filter((i) => i.status !== 'listed').length;
 
   // The badge used to be the mockup's hardcoded 30, which read as "you have 30
   // pins waiting" on a fresh install with nothing in it at all. Show the run's
@@ -64,7 +70,7 @@ export default function AppShell() {
 
         <nav className="sidebar-nav">
           {NAV.map(({ to, label, icon: Icon, match }) => {
-            const badge = label === 'Review queue' ? queued : null;
+            const badge = label === 'Review queue' ? queued : label === 'Idea board' ? ideaCount || null : null;
             return (
               <NavLink
                 key={label}

@@ -10,9 +10,12 @@ import Calendar from './routes/Calendar';
 import Dashboard from './routes/Dashboard';
 import Library from './routes/Library';
 import Connections from './routes/Connections';
+import Research from './routes/Research';
+import Ideas from './routes/Ideas';
 import { RunProvider } from './state/run';
 import { PushProvider } from './state/push';
 import { WorkspaceProvider } from './state/workspace';
+import { ResearchProvider } from './state/research';
 
 export default function App() {
   return (
@@ -20,6 +23,7 @@ export default function App() {
       <WorkspaceProvider>
       <RunProvider>
         <PushProvider>
+        <ResearchProvider>
         <Routes>
           <Route element={<AppShell />}>
             <Route path="/" element={<Dashboard />} />
@@ -32,9 +36,12 @@ export default function App() {
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/library" element={<Library />} />
             <Route path="/connections" element={<Connections />} />
+            <Route path="/research" element={<Research />} />
+            <Route path="/ideas" element={<Ideas />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </ResearchProvider>
         </PushProvider>
       </RunProvider>
       </WorkspaceProvider>
