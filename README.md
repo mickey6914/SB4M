@@ -6,6 +6,12 @@ generates pin mockups with AI-written titles, SEO descriptions and keyword sets,
 re-crops each approved pin for other networks (2:3 / 1:1 / 4:5 / 9:16), and pushes
 the finished batch into the seller's Content360 workspace.
 
+Upstream of that, **Trend research** works out what to make: it reads demand
+signals for clipart, wall art and home decor from Google, Bing, Pinterest,
+Etsy, Amazon and Shopify storefronts, and turns them into product ideas with
+image-generation prompts and Etsy copy. An idea starts a pin run in one click
+once its artwork exists (see OPERATING_GUIDE.md).
+
 The complete design specification lives in
 [`design_handoff_pin_post_studio/`](design_handoff_pin_post_studio/README.md).
 
@@ -41,7 +47,7 @@ otherwise spend the API credits and post to the seller's real accounts.
 npm install
 npm run dev          # frontend on http://localhost:5173
 npm run dev:server   # API on http://localhost:3001
-npm test --workspace server   # 65 tests
+npm test --workspace server
 ```
 
 ## API keys (all optional)
@@ -62,6 +68,7 @@ Every setting is documented in the template itself; in short:
 | AI copywriting | `ANTHROPIC_API_KEY` | $0.25 per 30-pin run |
 | Scene backgrounds | `ABACUS_API_KEY` (or `OPENAI_API_KEY` / `GEMINI_API_KEY`, + `SCENE_PROVIDER`) | pennies per run |
 | Content360 push | `CONTENT360_API_KEY` | included in your plan |
+| Trend research sources | `ETSY_API_KEY`, `PINTEREST_ACCESS_TOKEN`, `SERPAPI_API_KEY` | free / free / free plan 100 searches a month |
 
 Content360's plan includes its own AI content generation, but it is only
 available inside Content360's composer — there is no API for it, so this app's

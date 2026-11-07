@@ -233,6 +233,61 @@ Pinterest account clears the board, because a board belongs to an account.
 
 ---
 
+## Trend research and the idea board
+
+**Trend research** (sidebar) answers *what should I make next?* for three niches:
+clipart, wall art and home decor.
+
+1. **Pick a niche.** Optionally type seed keywords (comma separated), for
+   example `mushroom wall art, cherry red decor`. Leave it blank to search the
+   niche broadly.
+2. **Tick the sources.** Each says whether it is ready or which key it needs:
+
+   | Source | What it reads | Needs |
+   | --- | --- | --- |
+   | Google search | Autocomplete: what buyers type, including "… trends 2027", "… aesthetic" | Nothing |
+   | Bing search | The same, from Bing | Nothing |
+   | Amazon marketplace | Autocomplete; with SerpApi also top products, reviews, "bought in past month" | Nothing / `SERPAPI_API_KEY` |
+   | Shopify storefronts | The public catalogue of stores you list: titles, tags, prices, newest products | Nothing, just store domains |
+   | Google Trends | Searches rising over the last 90 days, with % growth | `SERPAPI_API_KEY` |
+   | Etsy marketplace | Top-ranked active listings: favourites, views, price, age, tags, competing listing count | `ETSY_API_KEY` |
+   | Pinterest Trends | Pinterest's growing and monthly-top searches for the niche, with growth % | `PINTEREST_ACCESS_TOKEN` |
+   | Web trend reports | Claude searches for current trend articles (Pinterest Predicts, Etsy trend pages, colour of the year) | Anthropic key |
+
+3. **Run research.** Usually under a minute. The report shows which sources
+   answered, then:
+   - **Product ideas**, each with a demand and competition read, the evidence
+     behind it, a palette with hex codes, a ready-to-use **image prompt**, three
+     variations, a negative prompt, production specs (sizes, ratios, DPI), and
+     an Etsy title with 13 tags. Every block has a Copy button.
+   - **Trend themes** and **palettes**, when Claude is writing the report.
+   - **Buyer keywords**, ranked, with where each was seen, Etsy favourites per
+     30 days and Pinterest growth.
+   - **Colours, styles and patterns** in demand, **prices** by marketplace, and
+     **listings worth studying**.
+4. **Save to board** keeps an idea on the **Idea board**, where you track it
+   from *To make* → *Making* → *Listed*, keep notes, and edit its subject or
+   styles and click **Rebuild prompts from edits** (free, no AI call). Export
+   either list as CSV.
+5. **Start a pin run** opens a new run with the idea's product type, style
+   direction and niche-appropriate mockups already filled in. Upload the
+   finished artwork there and carry on as normal.
+
+Without an Anthropic key the report still works: a built-in generator turns
+the same signals into ideas and prompts, and says so at the top of the
+report. With a key, Claude writes the themes and ideas from the data and cites
+it.
+
+**On "profitable":** no source here publishes sales. The ranking uses demand
+signals: what buyers type, what is growing, what gets favourited and bought.
+A phrase seen on several sources outranks one seen many times on one. Treat
+ideas as well-evidenced bets.
+
+Reports are kept in this browser (the last six, under *Earlier reports*), and
+the same search repeated within 30 minutes is served from cache at no cost.
+
+---
+
 ## The push, and what happens after
 
 `Push to Content360` is the only irreversible action. When you press it:
@@ -259,6 +314,7 @@ The app doesn't delete them for you.
 | AI copywriting | ~$0.25 per 30-pin run (Anthropic) |
 | Scene backgrounds | Abacus ChatLLM credits — 3 images per run, regardless of pin count |
 | Content360 push | Nothing beyond your existing plan |
+| Trend research | ~$0.10–0.30 per report with Claude (more with web reports on); SerpApi searches count against its plan; Etsy and Pinterest APIs are free |
 | Hosting | Free tier |
 
 The per-image credit draw hasn't been pinned down — Abacus reports it in

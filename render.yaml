@@ -40,3 +40,14 @@ services:
       # Pushing finished batches to Content360.
       - key: CONTENT360_API_KEY
         sync: false
+
+      # Trend research sources — each optional. Google, Bing, Amazon
+      # autocomplete and Shopify storefronts work without any of them.
+      - key: ETSY_API_KEY
+        sync: false
+      - key: ETSY_SHARED_SECRET
+        sync: false
+      - key: PINTEREST_ACCESS_TOKEN
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
