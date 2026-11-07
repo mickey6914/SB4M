@@ -13,7 +13,8 @@ import {
 import { analyze, contentChunks, phrasesOf } from '../src/research/analyze.js';
 import { buildPrompts, etsyTags, ruleIdeas } from '../src/research/prompts.js';
 import { buildDigest, buildSynthesisPrompt, parseSynthesis } from '../src/research/synthesize.js';
-import { collect, etsyKeyHeader, normaliseStore } from '../src/research/sources.js';
+import { collect, describe as describeError, etsyKeyHeader, getSerpJson, HttpError, NoResults, normaliseStore } from '../src/research/sources.js';
+import { importReport, parseFindings, parseNumber } from '../src/research/imported.js';
 import { parseRunBody } from '../src/research/index.js';
 import { expansionsFor } from '../src/research/lexicon.js';
 import type { SourceReport } from '../src/research/types.js';
@@ -338,4 +339,142 @@ test('rule ideas never repeat an overlapping subject or a style the subject alre
   const subjects = ideas.map((i) => i.subject);
   for (const a of subjects) for (const b of subjects) if (a !== b) assert.ok(!` ${b} `.includes(` ${a} `), `${a} overlaps ${b}`);
   for (const i of ideas) assert.ok(!i.styles.some((s) => ` ${i.subject} `.includes(` ${s} `)));
+});
+
+
+// — Pasted findings —
+
+const PASTED = `Here are the findings:
+\`\`\`
+pinterest | cherry red kitchen decor | growth +120% | yoy 340%
+pinterest | mushroom decor | monthly growth 85%
+etsy | Vintage Mushroom Print Set of 3 | price $6.50 | monthly sales 45 | favorites 1.2k | age 90 days | https://www.etsy.com/listing/123
+etsy | mushroom wall art | searches 5,400 | competition 41000
+profittree | cottagecore mushroom poster | sales: 30 | price=12
+- amazon | cherry kitchen sign | reviews 2300 | bought 1k | tags cherry; kitchen
+nonsense line without fields
+myspace | something | rank 1
+\`\`\``;
+
+test('pasted findings: sources, names before numbers, k/$/% and bullets are all read', () => {
+  const { signals, skipped } = parseFindings(PASTED);
+  assert.equal(signals.length, 6);
+  assert.equal(skipped, 3); // the intro sentence, the line with no fields, the unknown source
+  const [cherry, mush, listing, keyword, profit, amazon] = signals;
+  assert.equal(cherry.source, 'pinterest');
+  assert.equal(cherry.kind, 'trend');
+  assert.equal(cherry.metrics?.growthMom, 120);
+  assert.equal(cherry.metrics?.growthYoy, 340);
+  assert.equal(mush.metrics?.growthMom, 85);
+  assert.equal(listing.kind, 'listing');
+  assert.equal(listing.metrics?.price, 6.5);
+  // "monthly sales 45" is sales, not monthly growth.
+  assert.equal(listing.metrics?.boughtLastMonth, 45);
+  assert.equal(listing.metrics?.growthMom, undefined);
+  assert.equal(listing.metrics?.favorites, 1200);
+  assert.equal(listing.metrics?.ageDays, 90);
+  assert.equal(listing.url, 'https://www.etsy.com/listing/123');
+  assert.equal(keyword.kind, 'suggestion');
+  assert.equal(keyword.metrics?.searches, 5400);
+  assert.equal(keyword.metrics?.competition, 41000);
+  assert.equal(profit.source, 'etsy');
+  assert.equal(profit.metrics?.boughtLastMonth, 30);
+  assert.equal(profit.metrics?.price, 12);
+  assert.equal(amazon.kind, 'product');
+  assert.deepEqual(amazon.tags, ['cherry', 'kitchen']);
+  assert.ok(signals.every((x) => x.imported));
+});
+
+test('pasted findings never take a non-http link', () => {
+  const { signals } = parseFindings('etsy | x print | url javascript:alert(1) | price 5');
+  assert.equal(signals[0].url, undefined);
+});
+
+test('parseNumber reads the shapes people paste', () => {
+  assert.equal(parseNumber('$1,299.50'), 1299.5);
+  assert.equal(parseNumber('+85%'), 85);
+  assert.equal(parseNumber('2.5K'), 2500);
+  assert.equal(parseNumber('n/a'), undefined);
+});
+
+test('the pasted-findings row says what was read and from where', () => {
+  const r = importReport(parseFindings(PASTED));
+  assert.equal(r.source, 'manual');
+  assert.equal(r.status, 'ok');
+  assert.match(r.message, /6 findings: 2 Pinterest, 3 Etsy, 1 Amazon \(3 lines not understood\)/);
+  const bad = importReport(parseFindings('just some words\nmore words'));
+  assert.equal(bad.status, 'failed');
+});
+
+test('pasted Pinterest and Etsy data counts in the ranking under its own source', () => {
+  const reports = fixtureReports().filter((r) => r.source !== 'pinterest' && r.source !== 'etsy');
+  reports.push(importReport(parseFindings(PASTED)));
+  const a = analyze(reports, ['wall art']);
+  const mush = a.keywords.find((k) => k.phrase === 'mushroom')!;
+  assert.ok(mush.sources.includes('pinterest'));
+  assert.ok(mush.sources.includes('etsy'));
+  assert.equal(mush.pinterestGrowth, 85);
+  assert.equal(a.topListings[0].title, 'Vintage Mushroom Print Set of 3');
+  assert.ok(a.keywords.some((k) => k.phrase.includes('cherry')));
+});
+
+test('run body keeps pasted findings, capped', () => {
+  const r = parseRunBody({ niche: 'clipart', findings: 'x'.repeat(40_000) });
+  if ('error' in r) return assert.fail();
+  assert.equal(r.findings.length, 30_000);
+  const pasteOnly = parseRunBody({ niche: 'clipart', sources: [], findings: 'etsy | bow clipart' });
+  if ('error' in pasteOnly) return assert.fail();
+  assert.deepEqual(pasteOnly.sources, []);
+  assert.equal(pasteOnly.webSearch, false);
+});
+
+// — SerpApi and error messages —
+
+test('SerpApi: an error inside a 200 answer is surfaced; "no results" is not a failure', async () => {
+  const answer = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  await assert.rejects(getSerpJson('https://serpapi.com/x', answer({ error: "Google Trends hasn't returned any results for this query." })), NoResults);
+  await assert.rejects(getSerpJson('https://serpapi.com/x', answer({ error: 'Your account has run out of searches.' })), /run out of searches/);
+  await assert.rejects(getSerpJson('https://serpapi.com/x', answer({ error: 'Invalid API key.' }, 401)), (e: unknown) => e instanceof HttpError && e.status === 401);
+  assert.deepEqual(await getSerpJson('https://serpapi.com/x', answer({ related_queries: {} })), { related_queries: {} });
+});
+
+test('SerpApi: a dropped connection gets one retry; a refusal does not', async () => {
+  let calls = 0;
+  const flaky = (async () => {
+    calls++;
+    if (calls === 1) throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+    return new Response(JSON.stringify({ ok: 1 }));
+  }) as unknown as typeof fetch;
+  assert.deepEqual(await getSerpJson('https://serpapi.com/x', flaky), { ok: 1 });
+  assert.equal(calls, 2);
+  let refusals = 0;
+  const refuse = (async () => {
+    refusals++;
+    return new Response(JSON.stringify({ error: 'Invalid API key.' }), { status: 401 });
+  }) as unknown as typeof fetch;
+  await assert.rejects(getSerpJson('https://serpapi.com/x', refuse));
+  assert.equal(refusals, 1);
+});
+
+test('failure messages carry the low-level reason', () => {
+  assert.equal(describeError(new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } })), 'could not be reached (ECONNRESET)');
+  const timeout = new Error('timed out');
+  timeout.name = 'TimeoutError';
+  assert.equal(describeError(timeout), 'did not answer in time');
+  assert.equal(describeError(new HttpError(400, 'said: “Bad geo” (HTTP 400)')), 'said: “Bad geo” (HTTP 400)');
+});
+
+test('Google Trends: seeds with nothing rising read as OK with a hint, not a failure', async () => {
+  const saved = process.env.SERPAPI_API_KEY;
+  process.env.SERPAPI_API_KEY = 'test';
+  const empty = (async () =>
+    new Response(JSON.stringify({ error: "Google Trends hasn't returned any results for this query." }))) as unknown as typeof fetch;
+  try {
+    const [r] = await collect({ niche: 'clipart', seeds: ['bow clipart'], sources: ['google_trends'], shopifyStores: [], region: 'US' }, empty);
+    assert.equal(r.status, 'ok');
+    assert.match(r.message, /Nothing rising/);
+  } finally {
+    if (saved === undefined) delete process.env.SERPAPI_API_KEY;
+    else process.env.SERPAPI_API_KEY = saved;
+  }
 });

@@ -787,3 +787,34 @@ any of these services, so every client is verified against recorded response
 shapes in `server/test/research.test.ts`, not live calls. The Etsy key format
 (`keystring` vs `keystring:shared_secret`) is handled both ways because
 Etsy changed it for newer apps.
+
+## 24. Pasted findings, and why Google Trends failed
+
+Asked 2026-11-07, after the first live report.
+
+**Google Trends** came back "could not be reached" while Amazon results on
+the same SerpApi key worked. SerpApi runs a fresh Google Trends search before
+answering, which often takes 15–30 seconds, and every request was cut off at
+10. SerpApi calls now get 45 seconds and one retry on a dropped connection
+(never on a refusal, which would just repeat). Errors SerpApi reports inside a
+normal answer, such as "run out of searches", are shown in its words, and "no
+results for this query" is reported as nothing rising rather than a failure.
+Every failure message now carries the low-level reason (ECONNRESET, a
+timeout, the service's own message), and failures are logged by reason only,
+because a request URL can carry a key. Whether timing was the whole cause is
+confirmed only once this runs live.
+
+**Claude in Chrome and ProfitTree** can't be called from the server: one
+lives in the seller's browser, the other is a connector in their Claude
+account. So the research page takes their output instead. It offers two
+copyable prompts that ask Claude to gather the data and reply in a simple
+line format (`source | phrase | name value`), and a box to paste that reply
+into. Pasted lines keep their real source, so Pinterest data ranks as
+Pinterest, and they get a report row of their own saying what was read.
+Unreadable lines are skipped and counted, because chat output is not always
+tidy. The ProfitTree prompt caps itself at 6 tool calls because the free plan
+allows about 20 a week.
+
+Corrections to §23's setup notes: the Pinterest Trends endpoint uses the
+`user_accounts:read` scope (ask for that and `ads:read`), its tokens expire
+after about 30 days, and SerpApi's free plan is 250 searches a month, not 100.

@@ -251,7 +251,7 @@ clipart, wall art and home decor.
    | Shopify storefronts | The public catalogue of stores you list: titles, tags, prices, newest products | Nothing, just store domains |
    | Google Trends | Searches rising over the last 90 days, with % growth | `SERPAPI_API_KEY` |
    | Etsy marketplace | Top-ranked active listings: favourites, views, price, age, tags, competing listing count | `ETSY_API_KEY` |
-   | Pinterest Trends | Pinterest's growing and monthly-top searches for the niche, with growth % | `PINTEREST_ACCESS_TOKEN` |
+   | Pinterest Trends | Pinterest's growing and monthly-top searches for the niche, with growth % | `PINTEREST_ACCESS_TOKEN` (expires about monthly) |
    | Web trend reports | Claude searches for current trend articles (Pinterest Predicts, Etsy trend pages, colour of the year) | Anthropic key |
 
 3. **Run research.** Usually under a minute. The report shows which sources
@@ -272,6 +272,25 @@ clipart, wall art and home decor.
 5. **Start a pin run** opens a new run with the idea's product type, style
    direction and niche-appropriate mockups already filled in. Upload the
    finished artwork there and carry on as normal.
+
+**Pasted findings (Claude in Chrome, ProfitTree).** The server can't use your
+browser's logins or the connectors in your Claude account, so open
+**Add findings from Claude in Chrome or ProfitTree** under the sources:
+
+1. Click **Copy prompt for Claude in Chrome** (Pinterest Trends and Etsy,
+   read through your own logins) or **Copy prompt for ProfitTree** (Etsy
+   keyword searches, competition and estimated sales — written to use at
+   most 6 tool calls, since the free plan has about 20 a week).
+2. Paste it into a Claude chat that has that connection, and wait for the
+   reply.
+3. Paste the reply into the box and run research. You can untick every
+   source to build a report from the paste alone.
+
+Each line reads `source | phrase | name value | …`, for example
+`etsy | vintage mushroom print | price 6.50 | sales 45 | favorites 900`.
+Pasted Pinterest data counts as Pinterest and Etsy data as Etsy in the
+ranking. The report adds a **Your pasted findings** row saying how many lines
+were read and how many were not.
 
 Without an Anthropic key the report still works: a built-in generator turns
 the same signals into ideas and prompts, and says so at the top of the
@@ -314,7 +333,7 @@ The app doesn't delete them for you.
 | AI copywriting | ~$0.25 per 30-pin run (Anthropic) |
 | Scene backgrounds | Abacus ChatLLM credits — 3 images per run, regardless of pin count |
 | Content360 push | Nothing beyond your existing plan |
-| Trend research | ~$0.10–0.30 per report with Claude (more with web reports on); SerpApi searches count against its plan; Etsy and Pinterest APIs are free |
+| Trend research | ~$0.10–0.30 per report with Claude (more with web reports on); SerpApi searches count against its plan (free: 250 a month, up to 7 per report); Etsy and Pinterest APIs are free |
 | Hosting | Free tier |
 
 The per-image credit draw hasn't been pinned down — Abacus reports it in

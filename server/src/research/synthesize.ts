@@ -42,6 +42,9 @@ function compactSignals(signals: Signal[], n: number) {
     if (m.price !== undefined) out.price = m.price;
     if (m.boughtLastMonth !== undefined) out.bought30d = m.boughtLastMonth;
     if (m.reviews !== undefined) out.reviews = m.reviews;
+    if (m.searches !== undefined) out.searches = m.searches;
+    if (m.competition !== undefined) out.competition = m.competition;
+    if (s.imported) out.src = s.source;
     if (s.tags?.length) out.tags = s.tags.slice(0, 13);
     return out;
   });
@@ -54,7 +57,7 @@ export function buildDigest(niche: Niche, seeds: string[], reports: SourceReport
   for (const r of reports) {
     if (r.status !== 'ok') continue;
     const sorted = [...r.signals].sort((x, y) => (x.metrics?.rank ?? 99) - (y.metrics?.rank ?? 99));
-    bySource[r.source] = compactSignals(sorted, r.source === 'etsy' || r.source === 'shopify' ? 25 : 40);
+    bySource[r.source] = compactSignals(sorted, r.source === 'etsy' || r.source === 'shopify' ? 25 : r.source === 'manual' ? 80 : 40);
   }
   return {
     niche,
@@ -79,7 +82,7 @@ export function buildDigest(niche: Niche, seeds: string[], reports: SourceReport
 export function buildSynthesisPrompt(niche: Niche, digest: unknown, webSearch: boolean, today: string): string {
   return `You are a product researcher for an Etsy seller who makes ${NICHE_BRIEF[niche]}. Today is ${today}.
 
-Below is market data collected a moment ago from search-engine autocomplete (what buyers type), Pinterest and Google Trends (what is growing), and marketplace listings (Etsy favourites and prices, Amazon sales, Shopify catalogues). Scores are relative within this data set. Some sources may be unavailable; work with what is there and do not pretend to data you were not given.
+Below is market data collected a moment ago from search-engine autocomplete (what buyers type), Pinterest and Google Trends (what is growing), and marketplace listings (Etsy favourites and prices, Amazon sales, Shopify catalogues). Scores are relative within this data set. Some sources may be unavailable; work with what is there and do not pretend to data you were not given. Data under "manual" was gathered by the seller (in their own browser, or from an Etsy analytics tool such as ProfitTree); each item's "src" says where it came from, and "sales" there is an estimated monthly figure.
 ${webSearch ? '\nYou may run a few web searches for current, dated trend reporting for this niche (for example Pinterest Predicts, Etsy trend reports, colour-of-the-year announcements). Prefer sources from the last 12 months and use them to confirm or add to the data, not to replace it.\n' : ''}
 Produce:
 1. "summary": 2–3 sentences on where demand is heading in this niche right now.

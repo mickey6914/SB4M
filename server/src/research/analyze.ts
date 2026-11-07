@@ -41,6 +41,13 @@ function containsPhrase(haystack: string, phrase: string): boolean {
 // favourited for its age; an Amazon product by how much it sells.
 export function signalWeight(s: Signal): number {
   const m = s.metrics ?? {};
+  // Monthly search volume, where a tool such as ProfitTree reported one.
+  const searchBonus = m.searches ? Math.min(2, Math.log10(1 + m.searches / 200)) : 0;
+  return baseWeight(s) + searchBonus;
+}
+
+function baseWeight(s: Signal): number {
+  const m = s.metrics ?? {};
   const rankBoost = m.rank ? 1 + 0.5 / Math.sqrt(m.rank) : 1;
   switch (s.source) {
     case 'google':
@@ -56,7 +63,15 @@ export function signalWeight(s: Signal): number {
     case 'google_trends':
       return 2 + Math.min(3, Math.log10(1 + Math.max(0, m.rising ?? 0) / 50));
     case 'etsy':
-      return 0.5 + Math.min(3, Math.log10(1 + favoritesPer30d(s) / 5));
+      // A keyword (pasted from ProfitTree, or an Etsy search suggestion) is a
+      // buyer's own words, like any other suggestion.
+      if (s.kind === 'suggestion') return 1 * rankBoost;
+      return (
+        0.5 +
+        Math.min(3, Math.log10(1 + favoritesPer30d(s) / 5)) +
+        // Estimated monthly sales, where a tool reported them.
+        Math.min(2, Math.log10(1 + (m.boughtLastMonth ?? 0) / 10))
+      );
     case 'shopify':
       // Newer products mean a store is still investing in the theme.
       return m.ageDays !== undefined && m.ageDays < 120 ? 0.8 : 0.4;
@@ -255,12 +270,17 @@ export function analyze(reports: SourceReport[], seeds: string[]): Analysis {
     url: s.url,
     price: s.metrics?.price,
     currency: s.metrics?.currency,
-    favoritesPer30d: s.source === 'etsy' ? Math.round(favoritesPer30d(s) * 10) / 10 : undefined,
+    favoritesPer30d:
+      s.source === 'etsy' && s.metrics?.favorites !== undefined ? Math.round(favoritesPer30d(s) * 10) / 10 : undefined,
     reviews: s.metrics?.reviews,
     boughtLastMonth: s.metrics?.boughtLastMonth,
     store: s.store,
   });
-  const topEtsy = [...etsy].sort((a, b) => favoritesPer30d(b) - favoritesPer30d(a)).slice(0, 6);
+  const etsyScore = (s: Signal) => favoritesPer30d(s) + (s.metrics?.boughtLastMonth ?? 0) * 5;
+  const topEtsy = etsy
+    .filter((s) => s.kind === 'listing')
+    .sort((a, b) => etsyScore(b) - etsyScore(a))
+    .slice(0, 6);
   const topAmazon = signals
     .filter((s) => s.source === 'amazon' && s.kind === 'product')
     .sort((a, b) => (b.metrics?.boughtLastMonth ?? 0) - (a.metrics?.boughtLastMonth ?? 0) || (b.metrics?.reviews ?? 0) - (a.metrics?.reviews ?? 0))
