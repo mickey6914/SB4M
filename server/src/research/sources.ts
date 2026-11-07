@@ -9,7 +9,7 @@ import {
   parsePinterestTrends,
   parseShopifyProducts,
 } from './parse.js';
-import type { Niche, Signal, SourceId, SourceReport } from './types.js';
+import type { CollectedSourceId, Niche, Signal, SourceId, SourceReport } from './types.js';
 
 // One collector per source. Each returns a SourceReport and never throws: a
 // source that has no key says so ("not_configured"), one that errors says
@@ -22,6 +22,9 @@ import type { Niche, Signal, SourceId, SourceReport } from './types.js';
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const TIMEOUT_MS = 10_000;
+// SerpApi runs a real search on its side before answering, and Google Trends
+// in particular routinely takes 15–30 seconds. Ten seconds was cutting it off.
+const SERPAPI_TIMEOUT_MS = 45_000;
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
   google: 'Google search',
@@ -32,12 +35,13 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   amazon: 'Amazon marketplace',
   shopify: 'Shopify storefronts',
   web: 'Web trend reports (Claude web search)',
+  manual: 'Your pasted findings',
 };
 
 export type ResearchInput = {
   niche: Niche;
   seeds: string[];
-  sources: SourceId[];
+  sources: CollectedSourceId[];
   shopifyStores: string[];
   region: string;
 };
@@ -53,19 +57,64 @@ export class HttpError extends Error {
   }
 }
 
-export async function getJson(url: string, init: RequestInit = {}, fetchImpl: FetchFn = fetch): Promise<unknown> {
+export type GetJsonOptions = { timeoutMs?: number };
+
+// The service's own explanation, when its error body carries one: SerpApi
+// answers {"error": "..."}, Pinterest and Etsy {"message": "..."} or
+// {"error": "..."}. Saying what the service said beats "HTTP 400".
+export function serviceError(body: unknown): string | undefined {
+  const o = body as { error?: unknown; message?: unknown } | null;
+  const e = typeof o?.error === 'string' ? o.error : typeof o?.message === 'string' ? o.message : undefined;
+  return e?.trim() ? e.trim().slice(0, 200) : undefined;
+}
+
+export async function getJson(
+  url: string,
+  init: RequestInit = {},
+  fetchImpl: FetchFn = fetch,
+  opts: GetJsonOptions = {}
+): Promise<unknown> {
   const res = await fetchImpl(url, {
     ...init,
     headers: { 'user-agent': UA, accept: 'application/json', 'accept-language': 'en-US,en', ...(init.headers ?? {}) },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
   });
-  if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
   const text = await res.text();
+  let json: unknown;
   try {
-    return JSON.parse(text);
+    json = JSON.parse(text);
   } catch {
+    if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
     throw new HttpError(res.status, 'answered with something other than JSON');
   }
+  if (!res.ok) {
+    const said = serviceError(json);
+    throw new HttpError(res.status, said ? `said: “${said}” (HTTP ${res.status})` : `HTTP ${res.status}`);
+  }
+  return json;
+}
+
+// SerpApi reports some failures inside a 200 answer, as {"error": "..."}.
+// "No results" is not a failure — a quiet seed simply has nothing rising.
+export class NoResults extends Error {}
+
+export async function getSerpJson(url: string, fetchImpl: FetchFn = fetch): Promise<unknown> {
+  const attempt = () => getJson(url, {}, fetchImpl, { timeoutMs: SERPAPI_TIMEOUT_MS });
+  let json: unknown;
+  try {
+    json = await attempt();
+  } catch (err) {
+    // A dropped connection or a slow answer gets one more try; a refusal
+    // (bad key, out of searches) does not, since it will only repeat.
+    if (err instanceof HttpError && err.status < 500) throw err;
+    json = await attempt();
+  }
+  const said = serviceError(json);
+  if (said) {
+    if (/hasn.t returned any results|no results/i.test(said)) throw new NoResults(said);
+    throw new HttpError(200, `said: “${said}”`);
+  }
+  return json;
 }
 
 function env(name: string): string | undefined {
@@ -90,31 +139,35 @@ export function sourceConfig() {
     },
     etsy: {
       configured: Boolean(env('ETSY_API_KEY')),
-      note: env('ETSY_API_KEY') ? 'Official Open API v3' : 'Needs ETSY_API_KEY (free developer key)',
+      note: env('ETSY_API_KEY') ? 'Official Open API v3' : 'Needs ETSY_API_KEY — or paste ProfitTree findings below',
     },
     pinterest: {
       configured: Boolean(env('PINTEREST_ACCESS_TOKEN')),
-      note: env('PINTEREST_ACCESS_TOKEN') ? 'Official Trends API' : 'Needs PINTEREST_ACCESS_TOKEN',
+      note: env('PINTEREST_ACCESS_TOKEN') ? 'Official Trends API' : 'Needs PINTEREST_ACCESS_TOKEN — or paste Claude in Chrome findings below',
     },
     web: {
       configured: Boolean(env('PIN_POST_ANTHROPIC_KEY') || env('ANTHROPIC_API_KEY')),
       note: 'Claude searches the web for current trend reports — uses the Anthropic key',
     },
-  } satisfies Record<SourceId, { configured: boolean; note: string }>;
+  } satisfies Record<CollectedSourceId, { configured: boolean; note: string }>;
 }
 
 function report(source: SourceId, partial: Partial<SourceReport> & Pick<SourceReport, 'status' | 'message'>): SourceReport {
   return { source, label: SOURCE_LABELS[source], signals: [], ...partial };
 }
 
-function describe(err: unknown): string {
+// What went wrong, in words, plus the low-level reason when there is one —
+// "could not be reached" alone gave no way to tell a timeout from a refusal.
+export function describe(err: unknown): string {
   if (err instanceof HttpError) {
     if (err.status === 401 || err.status === 403) return `refused the key or the request (${err.status})`;
     if (err.status === 429) return 'is rate-limiting us — try again in a few minutes';
     return err.message;
   }
-  if ((err as Error)?.name === 'TimeoutError') return 'did not answer in time';
-  return 'could not be reached';
+  const e = err as { name?: string; message?: string; cause?: { code?: string; name?: string; message?: string } };
+  if (e?.name === 'TimeoutError' || e?.cause?.name === 'TimeoutError') return 'did not answer in time';
+  const why = e?.cause?.code ?? e?.cause?.message ?? (e?.message && e.message !== 'fetch failed' ? e.message : undefined);
+  return why ? `could not be reached (${String(why).slice(0, 80)})` : 'could not be reached';
 }
 
 // Runs every request, keeps whatever succeeded, and reports failure only when
@@ -129,6 +182,8 @@ async function settle<T>(tasks: Promise<T>[]): Promise<{ ok: Awaited<T>[]; error
 
 function finish(source: SourceId, ok: Signal[][], errors: unknown[], what: string): SourceReport {
   const signals = ok.flat();
+  // The reason only, never the error object: a request URL can carry a key.
+  for (const err of errors) console.warn(`[research] ${source}: ${describe(err)}`);
   if (signals.length === 0 && errors.length > 0) {
     return report(source, { status: 'failed', message: `${SOURCE_LABELS[source]} ${describe(errors[0])}.` });
   }
@@ -165,7 +220,14 @@ async function amazon(input: ResearchInput, f: FetchFn): Promise<SourceReport> {
   if (serp) {
     for (const seed of input.seeds.slice(0, 3)) {
       const url = `https://serpapi.com/search.json?engine=amazon&amazon_domain=amazon.com&k=${encodeURIComponent(seed)}&api_key=${encodeURIComponent(serp)}`;
-      tasks.push(getJson(url, {}, f).then((j) => parseAmazonResults(j, seed).slice(0, 20)));
+      tasks.push(
+        getSerpJson(url, f)
+          .then((j) => parseAmazonResults(j, seed).slice(0, 20))
+          .catch((err) => {
+            if (err instanceof NoResults) return [];
+            throw err;
+          })
+      );
     }
   }
   const { ok, errors } = await settle(tasks);
@@ -187,10 +249,19 @@ async function googleTrends(input: ResearchInput, f: FetchFn): Promise<SourceRep
     const url =
       `https://serpapi.com/search.json?engine=google_trends&data_type=RELATED_QUERIES&date=today%203-m` +
       `&geo=${encodeURIComponent(geo)}&q=${encodeURIComponent(seed)}&api_key=${encodeURIComponent(key)}`;
-    return parseGoogleTrendsRelated(await getJson(url, {}, f), seed);
+    try {
+      return parseGoogleTrendsRelated(await getSerpJson(url, f), seed);
+    } catch (err) {
+      if (err instanceof NoResults) return [];
+      throw err;
+    }
   });
   const { ok, errors } = await settle(tasks);
-  return finish('google_trends', ok, errors, 'rising searches (last 90 days)');
+  const r = finish('google_trends', ok, errors, 'rising searches (last 90 days)');
+  if (r.status === 'ok' && r.signals.length === 0) {
+    r.message = 'Nothing rising sharply for these seeds in the last 90 days — try more specific keywords';
+  }
+  return r;
 }
 
 // — Pinterest Trends API v5 —
@@ -303,7 +374,7 @@ async function shopify(input: ResearchInput, f: FetchFn): Promise<SourceReport> 
 export async function collect(input: ResearchInput, f: FetchFn = fetch): Promise<SourceReport[]> {
   const want = new Set(input.sources);
   const jobs: Promise<SourceReport>[] = [];
-  const add = (id: SourceId, run: () => Promise<SourceReport>) => {
+  const add = (id: CollectedSourceId, run: () => Promise<SourceReport>) => {
     if (want.has(id)) jobs.push(run().catch((err) => report(id, { status: 'failed', message: `${SOURCE_LABELS[id]} ${describe(err)}.` })));
   };
   add('google', () => openSearch('google', input, f));

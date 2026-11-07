@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import IdeaCard, { Swatches } from '../components/IdeaCard';
+import IdeaCard, { CopyButton, Swatches } from '../components/IdeaCard';
 import {
+  chromePrompt,
   download,
+  findingLineCount,
   ideasToCsv,
+  profitTreePrompt,
   NICHE_LABEL,
   SOURCE_SHORT,
   useResearch,
@@ -36,6 +39,21 @@ const STATUS_WORD: Record<string, string> = {
   skipped: 'Skipped',
 };
 
+// Every number a listing has, not just the first: pasted ProfitTree rows
+// carry estimated sales alongside favourites.
+function whyListed(l: ResearchReport['analysis']['topListings'][number]): string {
+  const parts = [
+    l.boughtLastMonth
+      ? l.source === 'amazon'
+        ? `${l.boughtLastMonth.toLocaleString()}+ bought last month`
+        : `~${l.boughtLastMonth.toLocaleString()} sales / month`
+      : null,
+    l.favoritesPer30d !== undefined ? `${l.favoritesPer30d} favourites / 30 days` : null,
+    l.reviews ? `${l.reviews.toLocaleString()} reviews` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Newest in store';
+}
+
 function money(n: number, currency = 'USD') {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
@@ -60,6 +78,10 @@ export default function Research() {
   }, []);
 
   const defaultSeeds = status?.niches.find((n) => n.id === form.niche)?.seeds ?? [];
+  const seedList = form.seeds.split(',').map((s) => s.trim()).filter(Boolean);
+  const promptSeeds = seedList.length ? seedList : defaultSeeds.slice(0, 3);
+  const pasted = findingLineCount(form.findings);
+  const [pasteOpen, setPasteOpen] = useState(pasted > 0);
 
   const run = async () => {
     setRunning(true);
@@ -74,6 +96,7 @@ export default function Research() {
           seeds: form.seeds.split(',').map((s) => s.trim()).filter(Boolean),
           sources: form.sources,
           shopifyStores: form.shopifyStores.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean),
+          findings: form.findings,
         }),
       });
       const json = await res.json();
@@ -164,8 +187,54 @@ export default function Research() {
           </div>
         )}
 
+        <div className="rs-paste">
+          <button type="button" className="rs-paste-toggle" aria-expanded={pasteOpen} onClick={() => setPasteOpen((o) => !o)}>
+            <span>{pasteOpen ? '−' : '+'}</span> Add findings from Claude in Chrome or ProfitTree
+            {pasted > 0 && <span className="tag tag-accent" style={{ marginLeft: 8 }}>{pasted} lines</span>}
+          </button>
+          {pasteOpen && (
+            <div className="rs-paste-body">
+              <p className="rail-note" style={{ marginTop: 0 }}>
+                For data this server can't fetch itself, such as Pinterest and Etsy through your own logins or ProfitTree's
+                Etsy numbers, copy a prompt into a Claude chat that has Claude in Chrome or ProfitTree connected, then paste
+                its reply here. It counts in the report under its own source.
+              </p>
+              <div className="rs-idea-actions">
+                <CopyButton text={chromePrompt(form.niche, promptSeeds)} label="Copy prompt for Claude in Chrome" />
+                <CopyButton text={profitTreePrompt(form.niche, promptSeeds)} label="Copy prompt for ProfitTree" />
+                {form.findings && (
+                  <button type="button" className="btn btn-ghost btn-small" onClick={() => setForm({ ...form, findings: '' })}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              <textarea
+                className="input rs-paste-box"
+                value={form.findings}
+                aria-label="Pasted findings"
+                placeholder={
+                  'pinterest | cherry red kitchen decor | growth 120% | yoy 340%\n' +
+                  'etsy | vintage mushroom print | price 6.50 | sales 45 | favorites 900\n' +
+                  'etsy | mushroom wall art | searches 5400 | competition 41000'
+                }
+                onChange={(e) => setForm({ ...form, findings: e.target.value })}
+              />
+              <div className="rail-note" style={{ marginTop: 6 }}>
+                One finding per line: <code>source | phrase | name value | …</code>. Sources: pinterest, etsy, amazon,
+                google, bing, shopify, other. Numbers it understands: growth, yoy, price, sales, favorites, reviews, searches,
+                competition, age. Lines it can't read are skipped and counted in the report.
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="rs-run-row">
-          <button className="btn btn-primary" type="button" disabled={running || form.sources.length === 0} onClick={run}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={running || (form.sources.length === 0 && pasted === 0)}
+            onClick={run}
+          >
             {running ? 'Researching…' : 'Run research'}
           </button>
           <span className="rail-note" style={{ margin: 0 }}>
@@ -439,15 +508,7 @@ function ReportView({
                     )}
                   </td>
                   <td>{l.price !== undefined ? money(l.price, l.currency ?? 'USD') : '—'}</td>
-                  <td className="rs-muted">
-                    {l.favoritesPer30d !== undefined
-                      ? `${l.favoritesPer30d} favourites / 30 days`
-                      : l.boughtLastMonth
-                        ? `${l.boughtLastMonth.toLocaleString()}+ bought last month`
-                        : l.reviews
-                          ? `${l.reviews.toLocaleString()} reviews`
-                          : 'Newest in store'}
-                  </td>
+                  <td className="rs-muted">{whyListed(l)}</td>
                 </tr>
               ))}
             </tbody>

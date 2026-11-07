@@ -7,7 +7,7 @@ import { useRun } from './run';
 // like the workspace rules; nothing here is shared or sent anywhere else.
 
 export type Niche = 'clipart' | 'wall_art' | 'home_decor';
-export type SourceId = 'google' | 'google_trends' | 'bing' | 'pinterest' | 'etsy' | 'amazon' | 'shopify' | 'web';
+export type SourceId = 'google' | 'google_trends' | 'bing' | 'pinterest' | 'etsy' | 'amazon' | 'shopify' | 'web' | 'manual';
 
 export type PaletteColor = { name: string; hex: string };
 export type Idea = {
@@ -104,6 +104,7 @@ export const SOURCE_SHORT: Record<SourceId, string> = {
   amazon: 'Amazon',
   shopify: 'Shopify',
   web: 'Web',
+  manual: 'Pasted',
 };
 
 const HISTORY_KEY = 'eav.research.history';
@@ -133,6 +134,8 @@ export type ResearchForm = {
   seeds: string;
   sources: SourceId[];
   shopifyStores: string;
+  // Findings pasted from Claude in Chrome, ProfitTree or the seller's notes.
+  findings: string;
 };
 
 export const DEFAULT_FORM: ResearchForm = {
@@ -140,6 +143,7 @@ export const DEFAULT_FORM: ResearchForm = {
   seeds: '',
   sources: ['google', 'bing', 'pinterest', 'google_trends', 'etsy', 'amazon', 'shopify', 'web'],
   shopifyStores: '',
+  findings: '',
 };
 
 type Ctx = {
@@ -313,4 +317,51 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// — Prompts for gathering findings outside the app —
+//
+// The server cannot reach the seller's browser or their Claude connectors, so
+// these prompts ask Claude (with Claude in Chrome, or with ProfitTree
+// connected) to gather the data and answer in the exact line format the
+// research page reads back in.
+
+const PINTEREST_CATEGORIES: Record<Niche, string> = {
+  clipart: 'Art, Design and DIY & Crafts',
+  wall_art: 'Art, Home Decor and Design',
+  home_decor: 'Home Decor, Design and Architecture',
+};
+
+export function chromePrompt(niche: Niche, seeds: string[]): string {
+  const kws = seeds.length ? seeds.join(', ') : NICHE_LABEL[niche].toLowerCase();
+  return `I'm researching ${NICHE_LABEL[niche].toLowerCase()} trends for my Etsy shop. Using my browser, please:
+
+1. Open Pinterest Trends (trends.pinterest.com), set the region to United States, and look at the growing and top monthly trends in ${PINTEREST_CATEGORIES[niche]}. Then search Pinterest Trends for each of these keywords: ${kws}.
+2. On Etsy, search for each keyword. Note the search suggestions in the search box, and read the first page of results: titles, prices, review counts, favourites and "Bestseller" or "Popular now" badges where shown.
+
+Only read pages. Do not buy, favourite, follow, message or change anything.
+
+Reply with ONLY lines in this exact format, one finding per line, nothing else:
+pinterest | <trend keyword> | growth <monthly % change> | yoy <yearly % change>
+etsy | <search suggestion>
+etsy | <listing title> | price <price> | reviews <count> | favorites <count> | <listing url>
+
+Aim for 20–40 Pinterest lines and 20–40 Etsy lines. Leave out any number you cannot see rather than guessing.`;
+}
+
+export function profitTreePrompt(niche: Niche, seeds: string[]): string {
+  const kws = seeds.length ? seeds.slice(0, 3).join(', ') : NICHE_LABEL[niche].toLowerCase();
+  return `Using the ProfitTree tools, research Etsy demand for ${NICHE_LABEL[niche].toLowerCase()} around these keywords: ${kws}.
+
+Keep it to at most 6 tool calls — my weekly credits are limited. Run keyword_finder for up to 3 of the keywords, then product_finder for the 2–3 most promising to see the best-selling listings.
+
+Reply with ONLY lines in this exact format, one per line, nothing else:
+etsy | <keyword> | searches <monthly searches> | competition <number of competing listings>
+etsy | <listing title> | price <price> | sales <estimated monthly sales> | favorites <count> | age <days since listed> | <listing url>
+
+Leave out any number the tools do not give rather than guessing.`;
+}
+
+export function findingLineCount(text: string): number {
+  return text.split(/\r?\n/).filter((l) => l.includes('|')).length;
 }

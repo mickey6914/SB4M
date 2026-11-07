@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { analyze } from './analyze.js';
+import { importReport, parseFindings } from './imported.js';
 import { NICHE_DEFAULTS } from './lexicon.js';
 import { buildPrompts, NICHE_SPECS, ruleIdeas } from './prompts.js';
 import { collect, sourceConfig, SOURCE_LABELS, type ResearchInput } from './sources.js';
 import { hasClaude, synthesize } from './synthesize.js';
-import { NICHES, SOURCE_IDS, type Niche, type PaletteColor, type ResearchReport, type SourceId } from './types.js';
+import { NICHES, SOURCE_IDS, type CollectedSourceId, type Niche, type PaletteColor, type ResearchReport } from './types.js';
 
 // Trend Research: what to make next. Collects demand signals for a niche from
 // search engines and marketplaces, ranks them, and turns them into product
@@ -19,7 +20,11 @@ type RunBody = {
   shopifyStores?: unknown;
   region?: string;
   webSearch?: boolean;
+  findings?: unknown;
 };
+
+// Pasted findings: enough for a long Claude in Chrome or ProfitTree answer.
+const FINDINGS_MAX = 30_000;
 
 // Reports are cached briefly: the same question asked twice in a few minutes
 // should not spend API quota twice. Keyed on everything that changes the answer.
@@ -38,21 +43,28 @@ function stringList(v: unknown, max: number, len: number): string[] {
   ].slice(0, max);
 }
 
-export function parseRunBody(body: RunBody): (ResearchInput & { webSearch: boolean }) | { error: string } {
+export function parseRunBody(
+  body: RunBody
+): (ResearchInput & { webSearch: boolean; findings: string }) | { error: string } {
   const niche = (NICHES as readonly string[]).includes(body.niche ?? '') ? (body.niche as Niche) : null;
   if (!niche) return { error: 'Pick a niche: clipart, wall art or home decor.' };
   const seeds = stringList(body.seeds, 6, 60);
-  const sources = stringList(body.sources, SOURCE_IDS.length, 20).filter((s): s is SourceId =>
+  const sources = stringList(body.sources, SOURCE_IDS.length, 20).filter((s): s is CollectedSourceId =>
     (SOURCE_IDS as readonly string[]).includes(s)
   );
+  const findings = typeof body.findings === 'string' ? body.findings.slice(0, FINDINGS_MAX) : '';
+  // No sources ticked but findings pasted: a report from the paste alone.
+  // Otherwise an empty or missing list means "all sources".
+  const pasteOnly = Array.isArray(body.sources) && sources.length === 0 && findings.trim() !== '';
   const region = typeof body.region === 'string' && /^[a-z]{2}$/i.test(body.region) ? body.region.toUpperCase() : 'US';
   return {
     niche,
     seeds: seeds.length ? seeds : NICHE_DEFAULTS[niche].seeds,
-    sources: sources.length ? sources : [...SOURCE_IDS],
+    sources: sources.length || pasteOnly ? sources : [...SOURCE_IDS],
     shopifyStores: stringList(body.shopifyStores, 8, 120),
     region,
-    webSearch: sources.length ? sources.includes('web') : true,
+    webSearch: sources.length ? sources.includes('web') : !pasteOnly,
+    findings,
   };
 }
 
@@ -71,11 +83,19 @@ export function registerResearchRoutes(app: FastifyInstance) {
     const input = parseRunBody(req.body ?? {});
     if ('error' in input) return reply.status(400).send({ ok: false, message: input.error });
 
-    const key = JSON.stringify([input.niche, input.seeds, [...input.sources].sort(), input.shopifyStores, input.region]);
+    const key = JSON.stringify([
+      input.niche,
+      input.seeds,
+      [...input.sources].sort(),
+      input.shopifyStores,
+      input.region,
+      input.findings.trim(),
+    ]);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_MS) return reply.send({ ok: true, report: hit.report, cached: true });
 
     const reports = await collect(input);
+    if (input.findings.trim()) reports.push(importReport(parseFindings(input.findings)));
     const analysis = analyze(reports, input.seeds);
 
     const webWanted = input.webSearch && hasClaude();

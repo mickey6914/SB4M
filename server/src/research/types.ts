@@ -19,7 +19,12 @@ export const SOURCE_IDS = [
   'shopify',
   'web',
 ] as const;
-export type SourceId = (typeof SOURCE_IDS)[number];
+// The sources the app collects from itself.
+export type CollectedSourceId = (typeof SOURCE_IDS)[number];
+// 'manual' is the report row for findings the seller pasted in (from Claude
+// in Chrome, ProfitTree or their own browsing). The pasted signals themselves
+// keep the source they came from, so Pinterest data still counts as Pinterest.
+export type SourceId = CollectedSourceId | 'manual';
 
 export type SignalKind = 'suggestion' | 'trend' | 'listing' | 'product';
 
@@ -41,6 +46,10 @@ export type SignalMetrics = {
   rising?: number;
   // Position in the source's own list, 1 = first.
   rank?: number;
+  // Monthly searches for a keyword (ProfitTree and similar tools).
+  searches?: number;
+  // How many listings compete for a keyword.
+  competition?: number;
   price?: number;
   currency?: string;
 };
@@ -55,6 +64,8 @@ export type Signal = {
   seed?: string;
   // Shopify: which store it came from.
   store?: string;
+  // Pasted in by the seller rather than collected by the app.
+  imported?: boolean;
   metrics?: SignalMetrics;
 };
 

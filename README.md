@@ -68,7 +68,7 @@ Every setting is documented in the template itself; in short:
 | AI copywriting | `ANTHROPIC_API_KEY` | $0.25 per 30-pin run |
 | Scene backgrounds | `ABACUS_API_KEY` (or `OPENAI_API_KEY` / `GEMINI_API_KEY`, + `SCENE_PROVIDER`) | pennies per run |
 | Content360 push | `CONTENT360_API_KEY` | included in your plan |
-| Trend research sources | `ETSY_API_KEY`, `PINTEREST_ACCESS_TOKEN`, `SERPAPI_API_KEY` | free / free / free plan 100 searches a month |
+| Trend research sources | `ETSY_API_KEY`, `PINTEREST_ACCESS_TOKEN`, `SERPAPI_API_KEY` | free / free / free plan 250 searches a month |
 
 Content360's plan includes its own AI content generation, but it is only
 available inside Content360's composer — there is no API for it, so this app's
